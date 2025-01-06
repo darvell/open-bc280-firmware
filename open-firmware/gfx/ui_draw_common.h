@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* 7-segment big digit dimensions: width = 12*scale, height = 20*scale */
+#define UI_BIG_DIGIT_WIDTH(scale)  (12u * (uint16_t)(scale))
+#define UI_BIG_DIGIT_HEIGHT(scale) (20u * (uint16_t)(scale))
+
 typedef struct {
     void (*fill_hline)(void *ctx, uint16_t x, uint16_t y, uint16_t w, uint16_t color);
     void (*fill_hline_dither)(void *ctx, uint16_t x, uint16_t y, uint16_t w,

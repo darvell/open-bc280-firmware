@@ -30,12 +30,6 @@ EXPECTED = {
     "bi": 120,
 }
 
-# Limit reason constants (from power.h)
-LIMIT_USER = 0
-LIMIT_LUG = 1
-LIMIT_THERM = 2
-LIMIT_SAG = 3
-
 
 def expect(cond: bool, msg: str) -> None:
     if not cond:
@@ -145,105 +139,6 @@ def main() -> int:
         expect(160 <= delta <= 260, f"ui tick delta {delta}ms out of tolerance")
 
         print("PASS: dashboard UI render-hash + trace fields")
-
-        # Test governor limit reasons in trace
-        # Clear log for fresh traces
-        try:
-            if os.path.exists(UART_LOG):
-                os.remove(UART_LOG)
-        except Exception:
-            pass
-
-        # Test SAG limiter (low voltage triggers lrsn=3)
-        client.set_state(
-            rpm=220,
-            torque=120,
-            speed_dmph=200,
-            soc=EXPECTED["soc"],
-            err=0,
-            cadence_rpm=80,
-            throttle_pct=40,
-            brake=0,
-            buttons=0,
-            power_w=400,
-            batt_dV=330,  # Low voltage to trigger sag
-            batt_dA=50,
-            ctrl_temp_dC=250,
-        )
-        time.sleep(0.5)
-        entries = wait_for_traces(UART_LOG, min_entries=2, timeout_s=2.0)
-        sag_entries = [e for e in entries if e.get("spd") == 200]
-        expect(len(sag_entries) >= 1, "no traces for sag condition")
-        expect(sag_entries[-1].get("lrsn") == LIMIT_SAG,
-               f"expected lrsn={LIMIT_SAG} (SAG), got {sag_entries[-1].get('lrsn')}")
-        print("PASS: SAG limit reason in trace")
-
-        # Test LUG limiter (low speed/low duty triggers lrsn=1)
-        try:
-            if os.path.exists(UART_LOG):
-                os.remove(UART_LOG)
-        except Exception:
-            pass
-
-        for _ in range(8):  # Need multiple iterations to ramp down lug limit
-            client.set_state(
-                rpm=50,
-                torque=200,
-                speed_dmph=30,  # Low speed = low duty = lugging
-                soc=EXPECTED["soc"],
-                err=0,
-                cadence_rpm=40,
-                throttle_pct=40,
-                brake=0,
-                buttons=0,
-                power_w=500,
-                batt_dV=420,  # Normal voltage
-                batt_dA=0,
-                ctrl_temp_dC=250,
-            )
-            time.sleep(0.2)
-
-        entries = wait_for_traces(UART_LOG, min_entries=2, timeout_s=2.0)
-        lug_entries = [e for e in entries if e.get("spd") == 30]
-        expect(len(lug_entries) >= 1, "no traces for lug condition")
-        expect(lug_entries[-1].get("lrsn") == LIMIT_LUG,
-               f"expected lrsn={LIMIT_LUG} (LUG), got {lug_entries[-1].get('lrsn')}")
-        print("PASS: LUG limit reason in trace")
-
-        # Test THERMAL limiter (sustained high current triggers lrsn=2)
-        try:
-            if os.path.exists(UART_LOG):
-                os.remove(UART_LOG)
-        except Exception:
-            pass
-
-        for _ in range(12):  # Need sustained high current for thermal
-            client.set_state(
-                rpm=220,
-                torque=120,
-                speed_dmph=200,
-                soc=EXPECTED["soc"],
-                err=0,
-                cadence_rpm=80,
-                throttle_pct=40,
-                brake=0,
-                buttons=0,
-                power_w=800,
-                batt_dV=420,  # Normal voltage
-                batt_dA=250,  # High current for thermal trigger
-                ctrl_temp_dC=250,
-            )
-            time.sleep(0.2)
-
-        entries = wait_for_traces(UART_LOG, min_entries=2, timeout_s=2.0)
-        therm_entries = [e for e in entries if e.get("spd") == 200]
-        if therm_entries and therm_entries[-1].get("lrsn") == LIMIT_THERM:
-            print("PASS: THERMAL limit reason in trace")
-        else:
-            # Thermal may not trigger quickly in short test; warn but don't fail
-            print(f"WARN: THERMAL limit reason not triggered (got lrsn={therm_entries[-1].get('lrsn') if therm_entries else 'none'})")
-
-        print("PASS: governor LIMIT reasons in dashboard trace")
         return 0
     except (ProtocolError, AssertionError) as e:
         sys.stderr.write(f"FAIL: {e}\n")

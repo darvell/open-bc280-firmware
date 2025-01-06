@@ -3,6 +3,9 @@
 
 #include "ui.h"
 #include "ui_draw_common.h"
+#include "ui_font_stroke.h"
+#include "ui_grid.h"
+#include "ui_layout.h"
 
 static int expect_equal_str(const char *got, const char *want)
 {
@@ -255,6 +258,196 @@ static int test_ring_arc_full(void)
     return 1;
 }
 
+static int test_font_width_widest_chars(void)
+{
+    /* Test font width calculation for widest characters per bead open-bc280-firmware-mbp:
+     * '0000' '88:88' 'WWWW' (widest chars) */
+
+    /* Most chars have width 3, but M/W have width 4
+     * Advance per char = (width + tracking) * scale = (w+1)*2 */
+    uint16_t w_0000 = ui_font_stroke_text_width_px("0000");
+    uint16_t w_8888 = ui_font_stroke_text_width_px("88:88");
+    uint16_t w_wwww = ui_font_stroke_text_width_px("WWWW");
+
+    /* '0' has width 3, advance = (3+1)*2 = 8 per char */
+    uint16_t expected_0000 = 4u * 8u;  /* 32 pixels */
+    if (!expect_true(w_0000 == expected_0000, "width of '0000' is 32px"))
+    {
+        fprintf(stderr, "  got: %u, want: %u\n", w_0000, expected_0000);
+        return 0;
+    }
+
+    /* '8' has width 3 (adv 8), ':' has width 1 (adv 4) */
+    /* 4 digits * 8 + 1 colon * 4 = 36 pixels */
+    uint16_t expected_8888 = 4u * 8u + 1u * 4u;  /* 36 pixels */
+    if (!expect_true(w_8888 == expected_8888, "width of '88:88' is 36px"))
+    {
+        fprintf(stderr, "  got: %u, want: %u\n", w_8888, expected_8888);
+        return 0;
+    }
+
+    /* 'W' has width 4, advance = (4+1)*2 = 10 per char */
+    uint16_t expected_wwww = 4u * 10u;  /* 40 pixels */
+    if (!expect_true(w_wwww == expected_wwww, "width of 'WWWW' is 40px"))
+    {
+        fprintf(stderr, "  got: %u, want: %u\n", w_wwww, expected_wwww);
+        return 0;
+    }
+
+    /* Verify height constant is accessible */
+    if (!expect_true(ui_font_stroke_text_height_px() == UI_FONT_STROKE_HEIGHT_PX, "text height matches constant"))
+        return 0;
+
+    /* Verify big digit dimensions match expected scale */
+    if (!expect_true(UI_BIG_DIGIT_WIDTH(1) == 12u, "big digit width scale 1"))
+        return 0;
+    if (!expect_true(UI_BIG_DIGIT_HEIGHT(1) == 20u, "big digit height scale 1"))
+        return 0;
+    if (!expect_true(UI_BIG_DIGIT_WIDTH(2) == 24u, "big digit width scale 2"))
+        return 0;
+    if (!expect_true(UI_BIG_DIGIT_HEIGHT(2) == 40u, "big digit height scale 2"))
+        return 0;
+
+    return 1;
+}
+
+static int test_layout_density(void)
+{
+    /* Test layout constants per bead open-bc280-firmware-ihc */
+
+    /* Dashboard layout - zones must be contiguous and fit screen */
+    if (!expect_true(UI_DASH_TOP_ROW == 0u, "dash top starts at row 0"))
+        return 0;
+    if (!expect_true(UI_DASH_TOP_ROW + UI_DASH_TOP_ROWS == UI_DASH_HERO_ROW,
+                     "dash top/hero contiguous"))
+        return 0;
+    if (!expect_true(UI_DASH_HERO_ROW + UI_DASH_HERO_ROWS == UI_DASH_STATS_ROW,
+                     "dash hero/stats contiguous"))
+        return 0;
+    if (!expect_true(UI_DASH_STATS_ROW + UI_DASH_STATS_ROWS <= UI_GRID_ROWS,
+                     "dash stats fits screen"))
+        return 0;
+
+    /* Dashboard stats tray is 2 columns */
+    if (!expect_true(UI_DASH_STAT_CELL_COLS * 2u <= UI_DASH_STATS_COLS,
+                     "dash stats 2 columns fit"))
+        return 0;
+
+    /* Trip layout - 8 cards in 2x4 grid */
+    if (!expect_true(UI_TRIP_CARD_COLS * 2u + UI_TRIP_GAP_COLS + UI_TRIP_MARGIN_COLS * 2u <= UI_GRID_COLS,
+                     "trip 2 columns fit"))
+        return 0;
+    if (!expect_true(UI_TRIP_CARD_ROWS * 4u + UI_TRIP_GAP_ROWS * 3u + UI_TRIP_HEADER_ROWS <= UI_GRID_ROWS,
+                     "trip 4 rows fit"))
+        return 0;
+
+    /* Settings layout - 6 items */
+    if (!expect_true(UI_SETTINGS_ITEM_ROWS * UI_SETTINGS_MAX_ITEMS + UI_SETTINGS_HEADER_ROWS <= UI_GRID_ROWS,
+                     "settings items fit"))
+        return 0;
+
+    /* Power layout - gauges and range fit */
+    if (!expect_true(UI_POWER_GAUGE_ROW + UI_POWER_GAUGE_ROWS < UI_POWER_RANGE_ROW,
+                     "power gauge above range"))
+        return 0;
+    if (!expect_true(UI_POWER_RANGE_ROW + UI_POWER_RANGE_ROWS <= UI_GRID_ROWS,
+                     "power range fits screen"))
+        return 0;
+
+    /* Battery layout fits */
+    if (!expect_true(UI_BATT_HERO_ROW + UI_BATT_HERO_ROWS < UI_BATT_RANGE_ROW,
+                     "batt hero above range"))
+        return 0;
+    if (!expect_true(UI_BATT_RANGE_ROW + UI_BATT_RANGE_ROWS <= UI_GRID_ROWS,
+                     "batt range fits screen"))
+        return 0;
+
+    /* Common header - consistent across screens */
+    if (!expect_true(UI_HEADER_ROWS == 3u, "header is 3 grid rows (30px)"))
+        return 0;
+
+    return 1;
+}
+
+static int test_grid_layout_system(void)
+{
+    /* Test grid constants per bead open-bc280-firmware-ejw */
+
+    /* Grid unit is 10px, screen is 240x320 */
+    if (!expect_true(UI_GRID_UNIT == 10u, "grid unit is 10px"))
+        return 0;
+    if (!expect_true(UI_GRID_COLS == 24u, "24 columns"))
+        return 0;
+    if (!expect_true(UI_GRID_ROWS == 32u, "32 rows"))
+        return 0;
+
+    /* Test coordinate conversion */
+    if (!expect_true(UI_GRID_X(0) == 0u, "col 0 -> x=0"))
+        return 0;
+    if (!expect_true(UI_GRID_X(12) == 120u, "col 12 -> x=120"))
+        return 0;
+    if (!expect_true(UI_GRID_X(24) == 240u, "col 24 -> x=240"))
+        return 0;
+    if (!expect_true(UI_GRID_Y(0) == 0u, "row 0 -> y=0"))
+        return 0;
+    if (!expect_true(UI_GRID_Y(16) == 160u, "row 16 -> y=160"))
+        return 0;
+    if (!expect_true(UI_GRID_Y(32) == 320u, "row 32 -> y=320"))
+        return 0;
+
+    /* Test span conversion */
+    if (!expect_true(UI_GRID_W(1) == 10u, "1 col span = 10px"))
+        return 0;
+    if (!expect_true(UI_GRID_HEIGHT(3) == 30u, "3 row span = 30px"))
+        return 0;
+
+    /* Test screen zones */
+    if (!expect_true(UI_ZONE_TOP_Y == 0u, "top zone y=0"))
+        return 0;
+    if (!expect_true(UI_ZONE_TOP_H == 30u, "top zone h=30"))
+        return 0;
+    if (!expect_true(UI_ZONE_HERO_Y == 30u, "hero zone y=30"))
+        return 0;
+    if (!expect_true(UI_ZONE_HERO_H == 100u, "hero zone h=100"))
+        return 0;
+    if (!expect_true(UI_ZONE_STATS_Y == 130u, "stats zone y=130"))
+        return 0;
+    if (!expect_true(UI_ZONE_STATS_H == 120u, "stats zone h=120"))
+        return 0;
+    if (!expect_true(UI_ZONE_FOOTER_Y == 250u, "footer zone y=250"))
+        return 0;
+    if (!expect_true(UI_ZONE_FOOTER_H == 70u, "footer zone h=70"))
+        return 0;
+
+    /* Test grid cell */
+    ui_grid_cell_t cell = UI_GRID_CELL(2, 3, 10, 5);
+    if (!expect_true(UI_GRID_CELL_X(cell) == 20u, "cell x=20"))
+        return 0;
+    if (!expect_true(UI_GRID_CELL_Y(cell) == 30u, "cell y=30"))
+        return 0;
+    if (!expect_true(UI_GRID_CELL_W(cell) == 100u, "cell w=100"))
+        return 0;
+    if (!expect_true(UI_GRID_CELL_H(cell) == 50u, "cell h=50"))
+        return 0;
+
+    /* Test bounds validation */
+    ui_grid_cell_t valid_cell = UI_GRID_CELL(0, 0, 24, 32);
+    if (!expect_true(ui_grid_cell_valid(&valid_cell), "full screen cell is valid"))
+        return 0;
+
+    ui_grid_cell_t overflow_cell = UI_GRID_CELL(20, 30, 10, 5);
+    if (!expect_true(!ui_grid_cell_valid(&overflow_cell), "overflow cell is invalid"))
+        return 0;
+
+    /* Test helper function */
+    uint16_t x, y, w, h;
+    ui_grid_to_rect(&cell, &x, &y, &w, &h);
+    if (!expect_true(x == 20u && y == 30u && w == 100u && h == 50u, "grid_to_rect conversion"))
+        return 0;
+
+    return 1;
+}
+
 static int page_in_layout(uint8_t page)
 {
     uint8_t count = ui_registry_layout_count();
@@ -349,35 +542,6 @@ static int test_engineer_trace(void)
     if (!expect_equal_str(buf, want2))
         return 0;
 
-    return 1;
-}
-
-static int test_dashboard_trace(void)
-{
-    char buf[256];
-    ui_model_t m = {0};
-    m.page = UI_PAGE_DASHBOARD;
-    m.speed_dmph = 123;
-    m.soc_pct = 87;
-    m.cadence_rpm = 75;
-    m.power_w = 360;
-    m.batt_dV = 520;
-    m.batt_dA = 120;
-    m.limit_reason = 2;
-    m.limit_power_w = 500;
-
-    ui_trace_t trace = {0};
-    trace.hash = 0xDEADBEEFu;
-    trace.render_ms = 42;
-    trace.page = UI_PAGE_DASHBOARD;
-    trace.dirty_count = 3;
-    trace.draw_ops = 99;
-
-    size_t n = ui_format_dashboard_trace(buf, sizeof(buf), &m, &trace, 1000);
-    buf[(n < sizeof(buf)) ? n : (sizeof(buf) - 1)] = '\0';
-    const char *want = "[TRACE] ui ms=1000 hash=3735928559 dt=42 spd=123 soc=87 cad=75 pwr=360 bv=520 bi=120 lrsn=2 limw=500 page=0 dirty=3 ops=99\n";
-    if (!expect_equal_str(buf, want))
-        return 0;
     return 1;
 }
 
@@ -613,8 +777,6 @@ int main(void)
 {
     if (!test_engineer_trace())
         return 1;
-    if (!test_dashboard_trace())
-        return 1;
     if (!test_ui_registry_pages())
         return 1;
     if (!test_ui_hash_determinism())
@@ -642,6 +804,12 @@ int main(void)
     if (!test_warning_icon_pixels())
         return 1;
     if (!test_ring_arc_full())
+        return 1;
+    if (!test_font_width_widest_chars())
+        return 1;
+    if (!test_grid_layout_system())
+        return 1;
+    if (!test_layout_density())
         return 1;
     printf("UI ENGINEER TRACE PASS\n");
     return 0;

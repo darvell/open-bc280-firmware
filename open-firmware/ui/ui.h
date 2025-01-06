@@ -147,7 +147,6 @@ typedef struct {
     uint8_t regen_brake_level;
     uint16_t regen_cmd_power_w;
     uint16_t regen_cmd_current_dA;
-    uint8_t walk_state; /* 0=off, 1=active, 2=cancelled, 3=disabled */
     uint8_t settings_index;
     uint8_t focus_metric;
     uint8_t button_map;
@@ -169,7 +168,6 @@ typedef struct {
     uint8_t cruise_mode;
     uint16_t cruise_set_dmph;
     uint16_t cruise_set_power_w;
-    uint32_t cruise_change_ms;  /* timestamp of last cruise mode change (for flash effect) */
     uint8_t alert_entries;
     uint8_t alert_type[3];
     uint8_t alert_flags[3];
@@ -279,7 +277,5 @@ void ui_draw_ring_gauge(ui_render_ctx_t *ctx, ui_rect_t clip,
 const ui_palette_t *ui_theme_palette(uint8_t theme_id);
 uint8_t ui_theme_normalize(uint8_t theme_id);
 size_t ui_format_engineer_trace(char *out, size_t len, const ui_model_t *model);
-size_t ui_format_dashboard_trace(char *out, size_t len, const ui_model_t *model,
-                                  const ui_trace_t *trace, uint32_t now_ms);
 
 #endif

@@ -1289,21 +1289,6 @@ class UARTClient:
             raise ProtocolError("read_mem bad cmd")
         return resp[1:]
 
-    def read_flash(self, addr: int, n: int) -> bytes:
-        """Read from SPI flash or internal flash.
-
-        Addresses in 0x00300000..0x08000000 or 0x08400000..0x09400000 are
-        read from external SPI flash via the SPI driver. Other addresses
-        are read directly as memory-mapped flash.
-        """
-        if n <= 0 or n > 192:
-            raise ValueError("read_flash length must be 1..192")
-        payload = struct.pack(">I", addr & 0xFFFFFFFF) + bytes([n & 0xFF])
-        resp = self._send(0x08, payload, expect_len=n)
-        if resp[0] != 0x88:
-            raise ProtocolError("read_flash bad cmd")
-        return resp[1:]
-
     def write_mem(self, addr: int, data: bytes) -> None:
         if not data:
             return

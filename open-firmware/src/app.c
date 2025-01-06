@@ -29,8 +29,6 @@
 #include "storage/logs.h"          /* event_log_meta_t */
 #include "platform/time.h"         /* platform_time_poll_1ms */
 #include "platform/cpu.h"          /* wfi */
-#include "platform/hw.h"           /* UART1_BASE */
-#include "drivers/uart.h"          /* uart_write */
 
 /*
  * Extern declarations for globals defined in main.c
@@ -147,7 +145,6 @@ void app_update_ui(void)
     g_ui_model.regen_brake_level = g_regen.brake_level;
     g_ui_model.regen_cmd_power_w = g_regen.cmd_power_w;
     g_ui_model.regen_cmd_current_dA = g_regen.cmd_current_dA;
-    g_ui_model.walk_state = (uint8_t)g_walk_state;
     g_ui_model.settings_index = g_ui_settings_index;
     g_ui_model.focus_metric = (g_config_active.button_flags & 0x01) ? 1u : 0u;
     g_ui_model.button_map = g_config_active.button_map;
@@ -186,16 +183,6 @@ void app_update_ui(void)
     g_ui_model.tune_cap_current_dA = g_config_active.cap_current_dA;
     g_ui_model.tune_ramp_wps = g_config_active.soft_start_ramp_wps;
     g_ui_model.tune_boost_s = (uint8_t)((g_config_active.boost_budget_ms + 500u) / 1000u);
-    /* Track cruise mode changes for UI flash effect */
-    {
-        static uint8_t prev_cruise_mode = 0u;
-        uint8_t new_mode = (uint8_t)g_cruise.mode;
-        if (new_mode != prev_cruise_mode)
-        {
-            g_ui_model.cruise_change_ms = g_ms;
-            prev_cruise_mode = new_mode;
-        }
-    }
     g_ui_model.cruise_mode = (uint8_t)g_cruise.mode;
     g_ui_model.cruise_set_dmph = g_cruise.set_speed_dmph;
     g_ui_model.cruise_set_power_w = g_cruise.set_power_w;
@@ -233,15 +220,8 @@ void app_update_ui(void)
     g_ui_model.alert_selected = g_ui_alert_index;
     g_ui_model.alert_ack_mask = g_ui_alert_ack_mask;
 
-    /* Call UI tick to render and emit trace */
-    ui_trace_t trace = {0};
-    if (ui_tick(&g_ui, &g_ui_model, g_ms, &trace)) {
-        char line[180];
-        size_t n = ui_format_dashboard_trace(line, sizeof(line), &g_ui_model, &trace, g_ms);
-        if (n > 0) {
-            uart_write(UART1_BASE, (const uint8_t *)line, n);
-        }
-    }
+    /* Call UI tick to render */
+    ui_tick(&g_ui, &g_ui_model, g_ms, NULL);
 }
 
 void app_housekeeping(void)

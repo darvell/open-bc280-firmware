@@ -1026,7 +1026,7 @@ static ui_dash_v2_layout_t dash_v2_layout(void)
     const uint16_t top_y = l.M;
     const uint16_t top_h = 20u;
     const uint16_t speed_y = (uint16_t)(top_y + top_h + l.GAP);
-    const uint16_t stats_h = 44u; /* Compact 4-column single-row tray */
+    const uint16_t stats_h = 84u;
     const uint16_t content_w = (uint16_t)(DISP_W - 2u * l.M);
     const uint16_t speed_h = (uint16_t)(DISP_H - l.M - stats_h - l.GAP - speed_y);
 
@@ -1086,20 +1086,10 @@ static void dash_v2_render_top(ui_render_ctx_t *ctx, const ui_model_t *m,
         soc_x = (uint16_t)(batt.x - 4u - soc_w);
     ui_draw_text(ctx, soc_x, (uint16_t)(top_y + 2u), buf, text, bg);
 
-    /* Center label priority: WALK > CRUISE > limiter > mode. */
+    /* Center label: show limiter when active, otherwise mode. */
     const char *center_str = m->mode ? "PRIVATE" : "LEGAL";
     uint16_t center_color = text;
-    if (m->walk_state == 1u) /* WALK_STATE_ACTIVE */
-    {
-        center_str = "WALK";
-        center_color = ok;
-    }
-    else if (m->cruise_mode != 0u)
-    {
-        center_str = "CRUISE";
-        center_color = ok;
-    }
-    else if (m->limit_reason != LIMIT_REASON_USER)
+    if (m->limit_reason != LIMIT_REASON_USER)
     {
         if (m->limit_reason == LIMIT_REASON_LUG)
             center_str = "LUG";
@@ -1261,45 +1251,33 @@ static void dash_v2_render_tray_inner(ui_render_ctx_t *ctx, const ui_model_t *m,
 
     ui_draw_round_rect(ctx, tray_in, card_fill, (uint8_t)(l->R - 2u));
 
-    /* 4-column layout: VOLT | CUR | TRIP | WH/MI */
-    uint16_t col_w = (uint16_t)(tray.w / 4u);
-    uint16_t label_y = (uint16_t)(tray.y + 6u);
-    uint16_t value_y = (uint16_t)(tray.y + 22u);
+    ui_rect_t vdiv = {(uint16_t)(tray.x + tray.w / 2u), (uint16_t)(tray.y + 10u), 1u, (uint16_t)(tray.h - 20u)};
+    ui_draw_rect(ctx, vdiv, stroke);
+    ui_rect_t hdiv = {(uint16_t)(tray.x + 10u), (uint16_t)(tray.y + tray.h / 2u), (uint16_t)(tray.w - 20u), 1u};
+    ui_draw_rect(ctx, hdiv, stroke);
 
-    /* Draw 3 vertical dividers between columns */
-    for (uint8_t i = 1u; i < 4u; ++i) {
-        ui_rect_t vdiv = {
-            (uint16_t)(tray.x + i * col_w),
-            (uint16_t)(tray.y + 6u),
-            1u,
-            (uint16_t)(tray.h - 12u)
-        };
-        ui_draw_rect(ctx, vdiv, stroke);
-    }
-
-    /* Column 0: VOLT */
-    uint16_t col0_x = (uint16_t)(tray.x + 4u);
-    ui_draw_text(ctx, col0_x, label_y, "VOLT", muted, card_fill);
+    /* Top-left: VOLT */
+    ui_draw_text(ctx, (uint16_t)(tray.x + 14u), (uint16_t)(tray.y + 10u - l->U), "VOLT", muted, card_fill);
     fmt_d10(buf, sizeof(buf), m->batt_dV);
-    ui_draw_text(ctx, col0_x, value_y, buf, text, card_fill);
+    ui_draw_text(ctx, (uint16_t)(tray.x + 14u), (uint16_t)(tray.y + 28u - l->U), buf, text, card_fill);
+    ui_draw_text(ctx, (uint16_t)(tray.x + 66u), (uint16_t)(tray.y + 28u - l->U), "V", muted, card_fill);
 
-    /* Column 1: CUR */
-    uint16_t col1_x = (uint16_t)(tray.x + col_w + 4u);
-    ui_draw_text(ctx, col1_x, label_y, "CUR", muted, card_fill);
+    /* Top-right: CUR */
+    ui_draw_text(ctx, (uint16_t)(tray.x + tray.w / 2u + 14u), (uint16_t)(tray.y + 10u - l->U), "CUR", muted, card_fill);
     fmt_d10(buf, sizeof(buf), m->batt_dA);
-    ui_draw_text(ctx, col1_x, value_y, buf, text, card_fill);
+    ui_draw_text(ctx, (uint16_t)(tray.x + tray.w / 2u + 14u), (uint16_t)(tray.y + 28u - l->U), buf, text, card_fill);
+    ui_draw_text(ctx, (uint16_t)(tray.x + tray.w / 2u + 66u), (uint16_t)(tray.y + 28u - l->U), "A", muted, card_fill);
 
-    /* Column 2: TRIP */
-    uint16_t col2_x = (uint16_t)(tray.x + 2u * col_w + 4u);
-    ui_draw_text(ctx, col2_x, label_y, "TRIP", muted, card_fill);
+    /* Bottom-left: TRIP */
+    ui_draw_text(ctx, (uint16_t)(tray.x + 14u), (uint16_t)(tray.y + tray.h / 2u + 10u - l->U), "TRIP", muted, card_fill);
     fmt_d10(buf, sizeof(buf), (int32_t)dist_d10);
-    ui_draw_text(ctx, col2_x, value_y, buf, text, card_fill);
+    ui_draw_text(ctx, (uint16_t)(tray.x + 14u), (uint16_t)(tray.y + tray.h / 2u + 28u - l->U), buf, text, card_fill);
+    ui_draw_text(ctx, (uint16_t)(tray.x + 66u), (uint16_t)(tray.y + tray.h / 2u + 28u - l->U), m->units ? "KM" : "MI", muted, card_fill);
 
-    /* Column 3: WH/MI (efficiency) */
-    uint16_t col3_x = (uint16_t)(tray.x + 3u * col_w + 4u);
-    ui_draw_text(ctx, col3_x, label_y, m->units ? "WH/K" : "WH/M", muted, card_fill);
+    /* Bottom-right: efficiency */
+    ui_draw_text(ctx, (uint16_t)(tray.x + tray.w / 2u + 14u), (uint16_t)(tray.y + tray.h / 2u + 10u - l->U), m->units ? "WH/KM" : "WH/MI", muted, card_fill);
     fmt_d10(buf, sizeof(buf), (int32_t)wh_d10);
-    ui_draw_text(ctx, col3_x, value_y, buf, text, card_fill);
+    ui_draw_text(ctx, (uint16_t)(tray.x + tray.w / 2u + 14u), (uint16_t)(tray.y + tray.h / 2u + 28u - l->U), buf, text, card_fill);
 }
 
 static void dirty_dashboard_v2(ui_dirty_t *d, const ui_model_t *m, const ui_model_t *p)
@@ -1307,8 +1285,7 @@ static void dirty_dashboard_v2(ui_dirty_t *d, const ui_model_t *m, const ui_mode
     ui_dash_v2_layout_t l = dash_v2_layout();
 
     if (m->assist_mode != p->assist_mode || m->virtual_gear != p->virtual_gear || m->soc_pct != p->soc_pct ||
-        m->mode != p->mode || m->limit_reason != p->limit_reason || m->err != p->err || m->brake != p->brake ||
-        m->walk_state != p->walk_state || m->cruise_mode != p->cruise_mode)
+        m->mode != p->mode || m->limit_reason != p->limit_reason || m->err != p->err || m->brake != p->brake)
         ui_dirty_add(d, l.top_area);
 
     if (m->speed_dmph != p->speed_dmph || m->power_w != p->power_w || m->limit_power_w != p->limit_power_w ||
@@ -1379,7 +1356,7 @@ static void render_dashboard(ui_render_ctx_t *ctx, const ui_model_t *m, uint16_t
     ui_draw_panel(ctx, l.speed, &card_style);
     dash_v2_render_speed_inner(ctx, m, &l, panel, text, muted, accent, warn, stroke, card_fill);
 
-    /* ===== Bottom stats tray (4-column compact row) ===== */
+    /* ===== Bottom stats tray (2x2 without four separate boxes) ===== */
     ui_draw_panel(ctx, l.tray, &card_style);
     dash_v2_render_tray_inner(ctx, m, &l, dist_d10, wh_d10, text, muted, stroke, card_fill);
 }
@@ -2284,6 +2261,145 @@ static void render_thermal(ui_render_ctx_t *ctx, const ui_model_t *m,
     ui_draw_value(ctx, (uint16_t)(bottom.x + 12u), (uint16_t)(bottom.y + 30u), "REASON", m->limit_reason, (m->limit_reason == LIMIT_REASON_USER) ? text : warn, card_fill);
 }
 
+/* Consolidated Power screen: combines Battery + Thermal info */
+static void render_power(ui_render_ctx_t *ctx, const ui_model_t *m,
+                         uint16_t dist_d10, uint16_t wh_d10)
+{
+    (void)dist_d10;
+    (void)wh_d10;
+    const uint16_t bgc = ui_color(ctx, UI_COLOR_BG);
+    const uint16_t panel = ui_color(ctx, UI_COLOR_PANEL);
+    const uint16_t text = ui_color(ctx, UI_COLOR_TEXT);
+    const uint16_t muted = ui_color(ctx, UI_COLOR_MUTED);
+    const uint16_t accent = ui_color(ctx, UI_COLOR_ACCENT);
+    const uint16_t warn = ui_color(ctx, UI_COLOR_WARN);
+    const uint16_t danger = ui_color(ctx, UI_COLOR_DANGER);
+    const uint16_t shadow = rgb565_dim(panel);
+    const uint16_t card_fill = rgb565_lerp(bgc, panel, 32u);
+    const uint16_t stroke = rgb565_dim(muted);
+
+    ui_draw_rect(ctx, (ui_rect_t){0, 0, DISP_W, DISP_H}, bgc);
+    render_header_icon(ctx, "POWER", UI_ICON_BATTERY);
+
+    ui_panel_style_t card = {
+        .radius = 10u,
+        .border_thick = 1u,
+        .shadow_dx = 2,
+        .shadow_dy = 2,
+        .fill = card_fill,
+        .border = panel,
+        .shadow = shadow,
+        .flags = panel_flags_for_theme(m->theme),
+    };
+
+    uint16_t y = (uint16_t)(TOP_Y + TOP_H + G);
+
+    /* Top card: SOC gauge (left) + Temp gauge (right) */
+    ui_rect_t top_card = {PAD, y, (uint16_t)(DISP_W - 2u * PAD), 100u};
+    ui_draw_panel(ctx, top_card, &card);
+
+    /* SOC ring gauge (left side) */
+    uint8_t soc = m->soc_pct;
+    if (soc > 100u)
+        soc = 100u;
+    uint16_t soc_color = accent;
+    if (soc < 20u)
+        soc_color = danger;
+    else if (soc < 40u)
+        soc_color = warn;
+    uint16_t inactive = rgb565_lerp(card_fill, muted, 64u);
+    ui_rect_t soc_clip = {(uint16_t)(top_card.x + 8u), (uint16_t)(top_card.y + 8u), 84u, 84u};
+    int16_t soc_cx = (int16_t)(top_card.x + 50u);
+    int16_t soc_cy = (int16_t)(top_card.y + 50u);
+    uint16_t soc_sweep = (uint16_t)((uint32_t)360u * soc / 100u);
+    ui_draw_ring_gauge(ctx, soc_clip, soc_cx, soc_cy, 38u, 8u, -90, 360u, soc_sweep,
+                       rgb565_lerp(card_fill, soc_color, 220u), inactive, card_fill);
+
+    /* SOC % text inside ring */
+    char soc_buf[8];
+    fmt_u32(soc_buf, sizeof(soc_buf), (uint32_t)soc);
+    uint16_t soc_tw = txt_w_est(soc_buf);
+    ui_draw_text(ctx, (uint16_t)(soc_cx - soc_tw / 2u), (uint16_t)(soc_cy - 6u), soc_buf, soc_color, card_fill);
+    ui_draw_text(ctx, (uint16_t)(soc_cx - 4u), (uint16_t)(soc_cy + 10u), "%", muted, card_fill);
+
+    /* Temperature gauge (right side) */
+    int32_t temp_dC = m->ctrl_temp_dC;
+    if (temp_dC < 0)
+        temp_dC = 0;
+    uint32_t t_clamp = (uint32_t)temp_dC;
+    if (t_clamp > 1000u)
+        t_clamp = 1000u;
+    uint16_t temp_pct = (uint16_t)((t_clamp * 100u + 500u) / 1000u);
+    uint16_t tcol = accent;
+    if (temp_pct >= 85u)
+        tcol = danger;
+    else if (temp_pct >= 70u)
+        tcol = warn;
+
+    ui_rect_t temp_clip = {(uint16_t)(top_card.x + 100u), (uint16_t)(top_card.y + 8u), 84u, 84u};
+    int16_t temp_cx = (int16_t)(top_card.x + 142u);
+    int16_t temp_cy = (int16_t)(top_card.y + 50u);
+    uint16_t temp_sweep = (uint16_t)((uint32_t)270u * temp_pct / 100u);
+    ui_draw_ring_gauge(ctx, temp_clip, temp_cx, temp_cy, 38u, 8u, 135, 270u, temp_sweep,
+                       rgb565_lerp(card_fill, tcol, 220u), inactive, card_fill);
+
+    /* Temp text inside ring */
+    char temp_buf[8];
+    fmt_d10(temp_buf, sizeof(temp_buf), (int32_t)m->ctrl_temp_dC);
+    uint16_t temp_tw = txt_w_est(temp_buf);
+    ui_draw_text(ctx, (uint16_t)(temp_cx - temp_tw / 2u), (uint16_t)(temp_cy - 6u), temp_buf, tcol, card_fill);
+    ui_draw_text(ctx, (uint16_t)(temp_cx - 2u), (uint16_t)(temp_cy + 10u), "C", muted, card_fill);
+
+    /* Stats panel (right side of top card) */
+    ui_rect_t stat = {(uint16_t)(top_card.x + 188u), (uint16_t)(top_card.y + 8u), (uint16_t)(top_card.w - 196u), 84u};
+    ui_draw_round_rect(ctx, stat, panel, 8u);
+    ui_draw_text(ctx, (uint16_t)(stat.x + 6u), (uint16_t)(stat.y + 6u), "VOLT", muted, panel);
+    ui_draw_value(ctx, (uint16_t)(stat.x + 6u), (uint16_t)(stat.y + 18u), "", m->batt_dV, text, panel);
+    ui_draw_rect(ctx, (ui_rect_t){(uint16_t)(stat.x + 4u), (uint16_t)(stat.y + 34u), (uint16_t)(stat.w - 8u), 1u}, stroke);
+    ui_draw_text(ctx, (uint16_t)(stat.x + 6u), (uint16_t)(stat.y + 40u), "CUR", muted, panel);
+    ui_draw_value(ctx, (uint16_t)(stat.x + 6u), (uint16_t)(stat.y + 52u), "", m->batt_dA, text, panel);
+    ui_draw_rect(ctx, (ui_rect_t){(uint16_t)(stat.x + 4u), (uint16_t)(stat.y + 68u), (uint16_t)(stat.w - 8u), 1u}, stroke);
+
+    /* Bottom card: Range + Limit */
+    ui_rect_t bottom = {PAD, (uint16_t)(top_card.y + top_card.h + G), (uint16_t)(DISP_W - 2u * PAD), 90u};
+    ui_draw_panel(ctx, bottom, &card);
+
+    /* Range section */
+    ui_draw_text(ctx, (uint16_t)(bottom.x + 12u), (uint16_t)(bottom.y + 10u), "RANGE", muted, card_fill);
+    {
+        char buf[16];
+        fmt_d10(buf, sizeof(buf), (int32_t)m->range_est_d10);
+        ui_draw_text(ctx, (uint16_t)(bottom.x + 12u), (uint16_t)(bottom.y + 28u), buf, text, card_fill);
+        ui_draw_text(ctx, (uint16_t)(bottom.x + 72u), (uint16_t)(bottom.y + 28u), m->units ? "KM" : "MI", muted, card_fill);
+    }
+
+    /* Sag + Limit section */
+    ui_draw_value(ctx, (uint16_t)(bottom.x + bottom.w / 2u), (uint16_t)(bottom.y + 10u), "SAG dV", m->sag_margin_dV, muted, card_fill);
+
+    ui_draw_text(ctx, (uint16_t)(bottom.x + 12u), (uint16_t)(bottom.y + 52u), "LIMIT", muted, card_fill);
+    const char *lim = "OK";
+    uint16_t lim_color = accent;
+    if (m->limit_reason == LIMIT_REASON_LUG)
+    {
+        lim = "LUG";
+        lim_color = warn;
+    }
+    else if (m->limit_reason == LIMIT_REASON_THERM)
+    {
+        lim = "THERM";
+        lim_color = danger;
+    }
+    else if (m->limit_reason == LIMIT_REASON_SAG)
+    {
+        lim = "SAG";
+        lim_color = warn;
+    }
+    ui_draw_text(ctx, (uint16_t)(bottom.x + 12u), (uint16_t)(bottom.y + 68u), lim, lim_color, card_fill);
+
+    /* Thermal state */
+    ui_draw_value(ctx, (uint16_t)(bottom.x + bottom.w / 2u), (uint16_t)(bottom.y + 52u), "STATE", (int32_t)m->thermal_state, muted, card_fill);
+}
+
 static void render_diagnostics(ui_render_ctx_t *ctx, const ui_model_t *m,
                                uint16_t dist_d10, uint16_t wh_d10)
 {
@@ -3114,27 +3230,41 @@ static const ui_screen_def_t k_ui_screens[] = {
         .render_partial = NULL,
         .dirty_fn = NULL,
     },
+    {
+        .id = UI_PAGE_POWER,
+        .flags = 0u,
+        .name = "power",
+        .render_full = render_power,
+        .render_partial = NULL,
+        .dirty_fn = NULL,
+    },
 };
 
-static const uint8_t k_ui_layout[] = {
+/* User-facing screens (always visible) */
+static const uint8_t k_ui_layout_user[] = {
     UI_PAGE_DASHBOARD,
     UI_PAGE_FOCUS,
     UI_PAGE_GRAPHS,
     UI_PAGE_TRIP,
-    UI_PAGE_PROFILES,
+    UI_PAGE_POWER,
     UI_PAGE_SETTINGS,
     UI_PAGE_CRUISE,
-    UI_PAGE_BATTERY,
-    UI_PAGE_THERMAL,
-    UI_PAGE_DIAGNOSTICS,
-    UI_PAGE_BUS,
-    UI_PAGE_CAPTURE,
-    UI_PAGE_ALERTS,
-    UI_PAGE_TUNE,
-    UI_PAGE_AMBIENT,
     UI_PAGE_ABOUT,
+};
+
+/* Developer screens (visible when CONFIG_FLAG_DEV_SCREENS set) */
+static const uint8_t k_ui_layout_dev[] = {
     UI_PAGE_ENGINEER_RAW,
     UI_PAGE_ENGINEER_POWER,
+    UI_PAGE_BUS,
+    UI_PAGE_CAPTURE,
+    UI_PAGE_DIAGNOSTICS,
+    UI_PAGE_ALERTS,
+    UI_PAGE_PROFILES,
+    UI_PAGE_TUNE,
+    UI_PAGE_AMBIENT,
+    UI_PAGE_BATTERY,
+    UI_PAGE_THERMAL,
 };
 
 static const ui_screen_def_t *ui_screen_by_id(uint8_t id)
@@ -3147,19 +3277,72 @@ static const ui_screen_def_t *ui_screen_by_id(uint8_t id)
     return NULL;
 }
 
+#define UI_USER_COUNT ((uint8_t)(sizeof(k_ui_layout_user) / sizeof(k_ui_layout_user[0])))
+#define UI_DEV_COUNT  ((uint8_t)(sizeof(k_ui_layout_dev)  / sizeof(k_ui_layout_dev[0])))
+
+/* Check if page is in user layout */
+static uint8_t is_user_page(uint8_t page)
+{
+    for (uint8_t i = 0; i < UI_USER_COUNT; ++i)
+    {
+        if (k_ui_layout_user[i] == page)
+            return 1u;
+    }
+    return 0u;
+}
+
+/* Check if page is in dev layout */
+static uint8_t is_dev_page(uint8_t page)
+{
+    for (uint8_t i = 0; i < UI_DEV_COUNT; ++i)
+    {
+        if (k_ui_layout_dev[i] == page)
+            return 1u;
+    }
+    return 0u;
+}
+
+uint8_t ui_page_visible(uint8_t page, uint8_t dev_screens_enabled)
+{
+    if (is_user_page(page))
+        return 1u;
+    if (dev_screens_enabled && is_dev_page(page))
+        return 1u;
+    return 0u;
+}
+
+static uint8_t ui_layout_count_ex(uint8_t dev_screens_enabled)
+{
+    uint8_t count = UI_USER_COUNT;
+    if (dev_screens_enabled)
+        count = (uint8_t)(count + UI_DEV_COUNT);
+    return count;
+}
+
+static uint8_t ui_layout_get_ex(uint8_t index, uint8_t dev_screens_enabled)
+{
+    if (index < UI_USER_COUNT)
+        return k_ui_layout_user[index];
+    if (dev_screens_enabled)
+    {
+        uint8_t dev_idx = (uint8_t)(index - UI_USER_COUNT);
+        if (dev_idx < UI_DEV_COUNT)
+            return k_ui_layout_dev[dev_idx];
+    }
+    return UI_PAGE_DASHBOARD;
+}
+
+/* Legacy wrappers (user screens only) */
 static uint8_t ui_layout_count(void)
 {
-    return (uint8_t)(sizeof(k_ui_layout) / sizeof(k_ui_layout[0]));
+    return UI_USER_COUNT;
 }
 
 static uint8_t ui_layout_get(uint8_t index)
 {
-    uint8_t count = ui_layout_count();
-    if (!count)
-        return UI_PAGE_DASHBOARD;
-    if (index >= count)
-        return k_ui_layout[0];
-    return k_ui_layout[index];
+    if (index < UI_USER_COUNT)
+        return k_ui_layout_user[index];
+    return k_ui_layout_user[0];
 }
 
 uint8_t ui_registry_count(void)
@@ -3411,45 +3594,6 @@ size_t ui_format_engineer_trace(char *out, size_t len, const ui_model_t *m)
     append_sp(&ptr, &rem);
     append_kv_u32(&ptr, &rem, "r_i", m->regen_cmd_current_dA);
 #endif
-    append_char(&ptr, &rem, '\n');
-    return (size_t)(ptr - out);
-}
-
-size_t ui_format_dashboard_trace(char *out, size_t len, const ui_model_t *model,
-                                  const ui_trace_t *trace, uint32_t now_ms)
-{
-    if (!out || len == 0 || !model || !trace)
-        return 0;
-    char *ptr = out;
-    size_t rem = len;
-    append_str(&ptr, &rem, "[TRACE] ui ");
-    append_kv_u32(&ptr, &rem, "ms", now_ms);
-    append_sp(&ptr, &rem);
-    append_kv_u32(&ptr, &rem, "hash", trace->hash);
-    append_sp(&ptr, &rem);
-    append_kv_u32(&ptr, &rem, "dt", trace->render_ms);
-    append_sp(&ptr, &rem);
-    append_kv_u32(&ptr, &rem, "spd", model->speed_dmph);
-    append_sp(&ptr, &rem);
-    append_kv_u32(&ptr, &rem, "soc", model->soc_pct);
-    append_sp(&ptr, &rem);
-    append_kv_u32(&ptr, &rem, "cad", model->cadence_rpm);
-    append_sp(&ptr, &rem);
-    append_kv_u32(&ptr, &rem, "pwr", model->power_w);
-    append_sp(&ptr, &rem);
-    append_kv_i32(&ptr, &rem, "bv", model->batt_dV);
-    append_sp(&ptr, &rem);
-    append_kv_i32(&ptr, &rem, "bi", model->batt_dA);
-    append_sp(&ptr, &rem);
-    append_kv_u32(&ptr, &rem, "lrsn", model->limit_reason);
-    append_sp(&ptr, &rem);
-    append_kv_u32(&ptr, &rem, "limw", model->limit_power_w);
-    append_sp(&ptr, &rem);
-    append_kv_u32(&ptr, &rem, "page", trace->page);
-    append_sp(&ptr, &rem);
-    append_kv_u32(&ptr, &rem, "dirty", trace->dirty_count);
-    append_sp(&ptr, &rem);
-    append_kv_u32(&ptr, &rem, "ops", trace->draw_ops);
     append_char(&ptr, &rem, '\n');
     return (size_t)(ptr - out);
 }
