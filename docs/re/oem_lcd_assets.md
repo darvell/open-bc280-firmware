@@ -3,7 +3,7 @@
 This document captures *structural* facts learned from the OEM combined image
 (`BC280_Combined_Firmware_3.3.6_4.2.5.bin`) in IDA.
 
-**Important:** we do **not** copy OEM pixel assets/blobs into this repo’s source tree.
+**Important:** we do **not** copy OEM pixel assets/blobs into `open-firmware/`.
 This repo uses OEM information only for compatibility and for designing
 equivalent open tooling/implementations.
 
@@ -54,3 +54,4 @@ The app includes a small custom decompressor (also present in bootloader):
 
 We can adopt a similar *format class* for **our own** assets (sprites/fonts),
 without copying any OEM payload data.
+

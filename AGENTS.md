@@ -4,12 +4,10 @@
 Open-source, hacker-friendly firmware for BC280-class e-bike displays controlling Shengyi DWG22 (custom variant) motor controllers. Goal: flexible, inspectable stack that runs on Aventon bikes (primary target) but is adaptable to other BC280-family models. We keep OEM images alongside our own builds for reference, diffing, and regression testing. Open firmware must stay self-contained (no static linking against OEM blobs) and must **never replace/take over the OEM bootloader**; it should coexist and rely on the bootloader’s jump/validation path.
 
 ## Layout
-- Firmware source tree lives at repo root:
-  - `src/` + `platform/` + `drivers/` + `startup/` + `storage/` + `ui/` + `gfx/` + `util/`
-  - `meson.build` + linker scripts (`startup/*.ld`, `link.ld`)
+- `open-firmware/` — our source tree (C, linker script, startup, debug protocol) plus build outputs. Contains `renode/` harness for fast emulation.
 - `firmware/` — sample binaries: at least two combined OEM images and several standalone app/boot/our builds for analysis and flashing.
 - `scripts/` — build + OTA helpers (BLE updater, etc.).
-- `docs/firmware/SAFETY.md` + `docs/firmware/REQUIREMENTS.md` — safety invariants and v1.0 requirements.
+- `open-firmware/docs/SAFETY.md` + `open-firmware/docs/REQUIREMENTS.md` — safety invariants and v1.0 requirements.
 
 ## Expectations for agents
 - Default to preserving OEM artifacts; never delete binaries unless explicitly told.
@@ -23,8 +21,8 @@ Open-source, hacker-friendly firmware for BC280-class e-bike displays controllin
 
 ## Host-first testing & simulation
 - Run `meson setup build-host` then `ninja -C build-host test` as the default fast check for logic changes.
-- Use `ninja -C build-host host_sim` then `./build-host/tests/host/host_sim` to exercise the full fake-bike loop with UART/BLE/sensor shims.
-- Keep a host-side peripheral shim/simulator (UART/BLE/sensors) that is **not** compiled into the embedded build; it should live under `tests/host/` or `scripts/`.
+- Use `ninja -C build-host host_sim` then `./build-host/host_sim` to exercise the full fake-bike loop with UART/BLE/sensor shims.
+- Keep a host-side peripheral shim/simulator (UART/BLE/sensors) that is **not** compiled into the embedded build; it should live under `open-firmware/tests/host/` or `scripts/`.
 - Use the shim to drive full-bike simulations (fake motor/sensors/ble UART) and compare deterministic traces/hashes.
 - Renode remains the integration backstop for verifying MMIO-level behavior.
 
@@ -32,10 +30,10 @@ Open-source, hacker-friendly firmware for BC280-class e-bike displays controllin
 - Hardware: BC280 display + Shengyi DWG22 (custom variant) controller; Aventon bike variants prioritized.
 - Boot path: vendor bootloader at 0x0800_0000, app at 0x0801_0000; bootloader flag in SPI flash window 0x0030_0000 + 0x3FF080.
 - MCU: AT32F403AVCT7 (Cortex-M4F), 256KB internal flash (bootloader uses first 64KB), default SRAM 96KB (extendable to 224KB via config).
-- BLE/UART protocol: 0x55-framed commands; see `docs/firmware/README.md` for supported debug ops.
+- BLE/UART protocol: 0x55-framed commands; see `open-firmware/README.md` for supported debug ops.
 
 ## Build (Meson/Ninja)
-- Firmware (cross): `meson setup build --cross-file cross/arm-none-eabi-clang.txt` then `ninja -C build`.
+- Firmware (cross): `meson setup build --cross-file open-firmware/cross/arm-none-eabi-clang.txt` then `ninja -C build`.
 - Host: `meson setup build-host` then `ninja -C build-host test`.
 - No optional build flags: single-path build only (legacy UI assets, Renode trace hooks, BLE compat/MITM, fault injection, release signing removed).
 

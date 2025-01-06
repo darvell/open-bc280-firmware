@@ -2,7 +2,7 @@
 """Renode regression for A/B update rollback on corrupted image.
 
 Assumes Renode exposes UART1 via BC280_UART1_PTY (e.g. /tmp/uart1) and the
-firmware is built from the standard open-firmware image (no special build flags).
+firmware was built with RENODE_TEST=1.
 """
 
 import os

@@ -88,7 +88,7 @@ def default_log_path() -> str:
     outdir = os.environ.get("BC280_RENODE_OUTDIR")
     if not outdir:
         here = os.path.abspath(os.path.dirname(__file__))
-        outdir = os.path.abspath(os.path.join(here, "..", "..", "out", "renode"))
+        outdir = os.path.abspath(os.path.join(here, "..", "..", "open-firmware", "renode", "output"))
     return os.path.join(outdir, "uart1_tx.log")
 
 

@@ -1,0 +1,295 @@
+# IDA extracts: BOOTLOADER V0.2.0
+## uart_interface_init (0x8000E9C)
+{
+  "name": "uart_interface_init",
+  "addr": "0x8000E9C",
+  "proto": "int()",
+  "vars": [
+    {
+      "name": "",
+      "type": "int",
+      "loc": "reg"
+    }
+  ],
+  "code": "// uart_interface_init: if SPI[0x3FF081]==0xAA then clear flag, else initialize UART (uart_init_config(9600)); resets BLE UART TX/RX ring context off_200008F8.\nint uart_interface_init()\n{\n  if ( sub_8004494(4190337) == 170 )\n    sub_800465A(4190337, 255);\n  else\n    sub_8000D6C(9600);\n  return comm_buffer_reset((int)&off_20000BD8);\n}\n",
+  "lines": {
+    "total": 10,
+    "start": 1,
+    "end": 10,
+    "more": false
+  }
+}
+
+## parse_mac_address_from_uart (0x8000EDC)
+{
+  "name": "parse_mac_address_from_uart",
+  "addr": "0x8000EDC",
+  "proto": "const char *__fastcall(int dr_9bit)",
+  "vars": [
+    {
+      "name": "dr_9bit",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "result",
+      "type": "const char *",
+      "loc": "reg"
+    },
+    {
+      "name": "v3",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "i",
+      "type": "unsigned int",
+      "loc": "reg"
+    }
+  ],
+  "code": "// Parses MAC address from UART data stream. Looks for 'TTM:MAC' pattern and extracts 6-byte MAC address, formatting it with colons.\nconst char *__fastcall parse_mac_address_from_uart(int dr_9bit)\n{\n  const char *result; // r0\n  int v3; // r1\n  unsigned int i; // r5\n\n  result = (const char *)(unsigned __int8)byte_20000DB2;\n  if ( byte_20000DB2 )\n  {\n    v3 = (unsigned __int8)n0x32++;\n    src[v3] = dr_9bit;\n    result = (const char *)(unsigned __int8)n0x32;\n    if ( (unsigned __int8)n0x32 < 0x32u )\n    {\n      if ( dr_9bit == 10 )\n      {\n        byte_20000DB2 = 0;\n        n0x32 = 0;\n        n58 = 58;\n        n58_0 = 58;\n        n58_1 = 58;\n        n58_2 = 58;\n        n58_3 = 58;\n        byte_20000DF6 = 0;\n        result = strstr(src, \"TTM:MAC-?\");\n        if ( !result )\n        {\n          result = strstr(src, \"TTM:MAC-\");\n          if ( result )\n          {\n            result = (const char *)(unsigned __int8)src[0];\n            if ( src[0] == 84 )\n            {\n              result = (const char *)(unsigned __int8)n84;\n              if ( n84 == 84 )\n              {\n                result = (const char *)(unsigned __int8)n77;\n                if ( n77 == 77 )\n                {\n                  byte_20000DE5 = byte_20000DBB;\n                  byte_20000DE6 = byte_20000DBC;\n                  byte_20000DE8 = byte_20000DBD;\n                  byte_20000DE9 = byte_20000DBE;\n                  byte_20000DEB = byte_20000DBF;\n                  byte_20000DEC = byte_20000DC0;\n                  byte_20000DEE = byte_20000DC1;\n                  byte_20000DEF = byte_20000DC2;\n                  byte_20000DF1 = byte_20000DC3;\n                  byte_20000DF2 = byte_20000DC4;\n                  byte_20000DF4 = byte_20000DC5;\n                  byte_20000DF5 = byte_20000DC6;\n                  for ( i = 0; i < 0x32; i = (unsigned __int8)(i + 1) )\n                    src[i] = 0;\n                  scheduler_remove_task(3);\n                  byte_20000DFA = 1;\n                  return (const char *)1;\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    else\n    {\n      byte_20000DB2 = 1;\n      n0x32 = 0;\n      return (const char *)&off_20000BD8;\n    }\n  }\n  else if ( dr_9bit == 84 )\n  {\n    byte_20000DB2 = 1;\n    n0x32 = 1;\n    src[0] = 84;\n    return src;\n  }\n  return result;\n}\n",
+  "lines": {
+    "total": 81,
+    "start": 1,
+    "end": 81,
+    "more": false
+  }
+}
+
+## bl_handle_ble_commands (0x8000378)
+{
+  "name": "bl_handle_ble_commands",
+  "addr": "0x8000378",
+  "proto": "int __fastcall(struct BLECommBuffer *comm_buffer)",
+  "vars": [
+    {
+      "name": "comm_buffer",
+      "type": "struct BLECommBuffer *",
+      "loc": "reg"
+    },
+    {
+      "name": "comm_buffer_1",
+      "type": "struct BLECommBuffer *",
+      "loc": "reg"
+    },
+    {
+      "name": "comm_buffer_2",
+      "type": "struct BLECommBuffer *",
+      "loc": "reg"
+    },
+    {
+      "name": "v3",
+      "type": "unsigned __int8 *",
+      "loc": "reg"
+    },
+    {
+      "name": "n85",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "n36",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v6",
+      "type": "bool",
+      "loc": "reg"
+    },
+    {
+      "name": "size_bytes",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "v8",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v9",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "",
+      "type": "int",
+      "loc": "reg"
+    }
+  ],
+  "code": "// Bootloader BLE command dispatcher: handles DFU-ish BLE update flow, verification, progress UI (\"BLE Updating...\", success/fail), and state machine via off_8000640/0644/0648.\nint __fastcall bl_handle_ble_commands(struct BLECommBuffer *comm_buffer)\n{\n  struct BLECommBuffer *comm_buffer_1; // r6\n  struct BLECommBuffer *comm_buffer_2; // r1\n  unsigned __int8 *v3; // r4\n  unsigned int n85; // r0\n  int n36; // r9\n  bool v6; // zf\n  unsigned int size_bytes; // r5\n  int v8; // r0\n  int v9; // r10\n\n  comm_buffer_1 = comm_buffer;\n  if ( comm_buffer )\n  {\n    comm_buffer_2 = (struct BLECommBuffer *)*((unsigned __int16 *)comm_buffer + 334);\n    comm_buffer = (struct BLECommBuffer *)*((unsigned __int16 *)comm_buffer + 335);\n    if ( comm_buffer_2 != comm_buffer )\n    {\n      v3 = (unsigned __int8 *)comm_buffer_1 + 154 * *((unsigned __int16 *)comm_buffer_1 + 334) + 206;\n      n85 = v3[2];\n      if ( n85 != 85 )\n      {\n        comm_buffer = (struct BLECommBuffer *)((unsigned __int16)++*((_WORD *)comm_buffer_1 + 334) % 3);\n        *((_WORD *)comm_buffer_1 + 334) = (_WORD)comm_buffer;\n        return (int)comm_buffer;\n      }\n      n36 = v3[3];\n      if ( n36 == 36 )\n      {\n        n85 = v3[4];\n        if ( n85 >= 4 )\n        {\n          if ( flash_write_words(\n                 (((((((v3[5] << 8) + v3[6]) << 8) + v3[7]) << 8) + v3[8]) << 7) + 134283264,\n                 v3 + 9,\n                 0x80u) )\n          {\n            n85 = (unsigned int)ble_send_status_response(37, 0);\n          }\n          else\n          {\n            n85 = (unsigned int)ble_send_status_response(37, 1);\n          }\n        }\n        goto LABEL_51;\n      }\n      if ( v3[3] > 0x24u )\n      {\n        if ( n36 == 96 )\n          goto LABEL_51;\n        if ( v3[3] > 0x60u )\n        {\n          if ( n36 == 99 )\n            goto LABEL_51;\n          v6 = n36 == 101;\n          if ( n36 == 101 )\n            goto LABEL_51;\n        }\n        else\n        {\n          if ( n36 == 38 )\n          {\n            v9 = calculate_crc8(size_bytes);\n            scheduler_remove_task(11);\n            lcd_draw_text(50, 160, \"BLE Updating...\", 0);\n            if ( (unsigned __int8)byte_20000024 == v9 )\n            {\n              sub_8004694(4190336, 0xFFFF);\n              lcd_draw_text(50, 160, \"BLE Update Success!\", 0xFFFF);\n              scheduler_add_task(6, 2000, validate_firmware_header, 0x10000);\n              n85 = (unsigned int)ble_send_status_response(39, 1);\n            }\n            else\n            {\n              lcd_draw_text(50, 160, \"BLE Update failed!\", 0xFFFF);\n              n85 = (unsigned int)ble_send_status_response(39, 0);\n            }\n            goto LABEL_51;\n          }\n          if ( n36 == 48 || (v6 = n36 == 50) )\n          {\nLABEL_51:\n            nullsub_6(n85);\n            comm_buffer = (struct BLECommBuffer *)((unsigned __int16)++*((_WORD *)comm_buffer_1 + 334) % 3);\n            *((_WORD *)comm_buffer_1 + 334) = (_WORD)comm_buffer;\n            return (int)comm_buffer;\n          }\n        }\n      }\n      else\n      {\n        if ( n36 == 6 )\n        {\n          n85 = (unsigned int)ble_send_status_response(7, 0);\n          goto LABEL_51;\n        }\n        if ( v3[3] <= 6u )\n        {\n          if ( v3[3] )\n          {\n            if ( n36 == 2 )\n            {\n              if ( *((unsigned __int8 *)&dword_80060CC[64 * v3[5] - 64] + v3[6]) == v3[7]\n                && *((unsigned __int8 *)&dword_80060CC[64 * v3[8] - 64] + v3[9]) == v3[10]\n                && *((unsigned __int8 *)&dword_80060CC[64 * v3[11] - 64] + v3[12]) == v3[13] )\n              {\n                ble_send_status_response(3, 0);\n              }\n              else\n              {\n                ble_send_status_response(3, 1);\n              }\n              n85 = scheduler_remove_task(10);\n              goto LABEL_51;\n            }\n            v6 = n36 == 4;\n            goto LABEL_12;\n          }\n          n85 = (unsigned int)ble_send_status_response(1, 0);\n          goto LABEL_51;\n        }\n        if ( n36 == 9 )\n          goto LABEL_51;\n        if ( n36 == 32 )\n        {\n          n85 = sub_80009B6(33);\n          goto LABEL_51;\n        }\n        v6 = n36 == 34;\n        if ( n36 == 34 )\n        {\n          size_bytes = (((((v3[6] << 8) + v3[7]) << 8) + v3[8]) << 8) + v3[9];\n          if ( size_bytes <= 0x23000 )\n          {\n            v8 = sub_8002B50();\n            if ( !sub_8002AE2(v8) )\n            {\n              n85 = (unsigned int)ble_send_status_response(35, 0);\n              goto LABEL_51;\n            }\n            size_bytes = size_bytes;\n            byte_20000024 = v3[5];\n            ble_send_status_response(35, 1);\n          }\n          else\n          {\n            ble_send_status_response(35, 0);\n          }\n          lcd_draw_text(50, 160, \"Please BLE Update...\", 0);\n          lcd_draw_text(50, 160, \"BLE Updating...\", 0xFFFF);\n          n85 = scheduler_add_task(11, 1000, ui_cycle_display_pages, -1);\n          goto LABEL_51;\n        }\n      }\nLABEL_12:\n      if ( v6 )\n        n85 = (unsigned int)ble_send_firmware_version();\n      goto LABEL_51;\n    }\n  }\n  return (int)comm_buffer;\n}\n",
+  "lines": {
+    "total": 165,
+    "start": 1,
+    "end": 165,
+    "more": false
+  }
+}
+
+## bootloader_comm_processor (0x8002564)
+{
+  "name": "bootloader_comm_processor",
+  "addr": "0x8002564",
+  "proto": "int(comm_buffer_t *ctx)",
+  "vars": [
+    {
+      "name": "ctx",
+      "type": "comm_buffer_t *",
+      "loc": "reg"
+    },
+    {
+      "name": "ctx_1",
+      "type": "comm_buffer_t *",
+      "loc": "reg"
+    },
+    {
+      "name": "ctx_2",
+      "type": "comm_buffer_t *",
+      "loc": "reg"
+    },
+    {
+      "name": "v3",
+      "type": "char *",
+      "loc": "reg"
+    },
+    {
+      "name": "v4",
+      "type": "char *",
+      "loc": "reg"
+    },
+    {
+      "name": "v5",
+      "type": "_WORD *",
+      "loc": "reg"
+    },
+    {
+      "name": "v6",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v7",
+      "type": "_WORD *",
+      "loc": "reg"
+    },
+    {
+      "name": "v8",
+      "type": "char *",
+      "loc": "reg"
+    },
+    {
+      "name": "v9",
+      "type": "char",
+      "loc": "reg"
+    },
+    {
+      "name": "v10",
+      "type": "_WORD *",
+      "loc": "reg"
+    },
+    {
+      "name": "v11",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v12",
+      "type": "_WORD *",
+      "loc": "reg"
+    },
+    {
+      "name": "v13",
+      "type": "unsigned __int16 *",
+      "loc": "reg"
+    },
+    {
+      "name": "v14",
+      "type": "__int16",
+      "loc": "reg"
+    },
+    {
+      "name": "v15",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v16",
+      "type": "unsigned __int16 *",
+      "loc": "reg"
+    },
+    {
+      "name": "v17",
+      "type": "__int16",
+      "loc": "reg"
+    },
+    {
+      "name": "v18",
+      "type": "unsigned __int16 *",
+      "loc": "reg"
+    },
+    {
+      "name": "v19",
+      "type": "__int16",
+      "loc": "reg"
+    },
+    {
+      "name": "",
+      "type": "int",
+      "loc": "reg"
+    }
+  ],
+  "code": "// Complex packet processing - handles circular buffer, packet validation, sync bytes (0x55), checksum validation, buffer advancement\nint bootloader_comm_processor(comm_buffer_t *ctx)\n{\n  comm_buffer_t *ctx_1; // r4\n  comm_buffer_t *ctx_2; // r7\n  char *v3; // r5\n  char *v4; // r4\n  _WORD *v5; // r5\n  int v6; // t1\n  _WORD *v7; // r4\n  char *v8; // r4\n  char v9; // r6\n  _WORD *v10; // r5\n  int v11; // t1\n  _WORD *v12; // r4\n  unsigned __int16 *v13; // r4\n  __int16 v14; // t1\n  int v15; // r8\n  unsigned __int16 *v16; // r4\n  __int16 v17; // t1\n  unsigned __int16 *v18; // r4\n  __int16 v19; // t1\n\n  ctx_1 = ctx;\n  ctx_2 = (comm_buffer_t *)*((unsigned __int16 *)ctx + 126);\n  if ( ctx && (comm_buffer_t *)*((unsigned __int16 *)ctx + 125) != ctx_2 )\n  {\n    v3 = (char *)ctx + 162 * *((unsigned __int16 *)ctx + 534) + 256;\n    if ( *((_WORD *)v3 + 80) )\n    {\n      if ( *((unsigned __int16 *)v3 + 80) < 0xA0u )\n      {\n        while ( 1 )\n        {\n          ctx = (comm_buffer_t *)*((unsigned __int16 *)ctx_1 + 127);\n          if ( ctx == ctx_2 )\n            break;\n          v9 = *((_BYTE *)ctx_1 + *((unsigned __int16 *)ctx_1 + 127));\n          v11 = *((unsigned __int16 *)v3 + 80);\n          v10 = v3 + 160;\n          ++*v10;\n          v3 = (char *)(v10 - 80);\n          v3[v11] = v9;\n          LOWORD(v11) = *((_WORD *)ctx_1 + 127);\n          v12 = (_WORD *)((char *)ctx_1 + 254);\n          *v12 = v11 + 1;\n          *v12 = (unsigned __int16)*v12 % 250;\n          ctx_1 = (comm_buffer_t *)(v12 - 127);\n          if ( *((unsigned __int16 *)v3 + 80) >= 4u )\n          {\n            if ( (unsigned __int8)v3[2] > 0x9Cu )\n            {\n              *((_WORD *)v3 + 80) = 0;\n              v14 = *((_WORD *)ctx_1 + 125);\n              v13 = (unsigned __int16 *)((char *)ctx_1 + 250);\n              *v13 = v14 + 1;\n              *v13 %= 250;\n              ctx = (comm_buffer_t *)*v13;\n              v13[2] = (unsigned __int16)ctx;\n              return (int)ctx;\n            }\n            v15 = *((unsigned __int16 *)v3 + 80);\n            if ( (unsigned __int8)v3[2] + 4 <= v15 )\n            {\n              if ( validate_packet_checksum((int)v3) )\n              {\n                v19 = *((_WORD *)ctx_1 + 125);\n                v18 = (unsigned __int16 *)((char *)ctx_1 + 250);\n                *v18 = v19 + v15;\n                *v18 %= 250;\n                v18[2] = *v18;\n                return advance_circular_buffer_index((int)(v18 - 125));\n              }\n              else\n              {\n                *((_WORD *)v3 + 80) = 0;\n                v17 = *((_WORD *)ctx_1 + 125);\n                v16 = (unsigned __int16 *)((char *)ctx_1 + 250);\n                *v16 = v17 + 1;\n                *v16 %= 250;\n                ctx = (comm_buffer_t *)*v16;\n                v16[2] = (unsigned __int16)ctx;\n              }\n              return (int)ctx;\n            }\n          }\n        }\n      }\n      else\n      {\n        *((_WORD *)v3 + 80) = 0;\n        v8 = (char *)ctx + 250;\n        ++*((_WORD *)ctx + 125);\n        *((_WORD *)ctx + 125) = *((unsigned __int16 *)ctx + 125) % 250;\n        ctx = (comm_buffer_t *)*((unsigned __int16 *)ctx + 125);\n        *((_WORD *)v8 + 2) = (_WORD)ctx;\n      }\n    }\n    else if ( *((_BYTE *)ctx + *((unsigned __int16 *)ctx + 127)) == 85 )\n    {\n      ctx = (comm_buffer_t *)*((unsigned __int16 *)ctx + 533);\n      if ( (comm_buffer_t *)((*((unsigned __int16 *)ctx_1 + 534) + 1) % 5) != ctx )\n      {\n        v6 = *((unsigned __int16 *)v3 + 80);\n        v5 = v3 + 160;\n        ++*v5;\n        *((_BYTE *)v5 + v6 - 160) = 85;\n        LOWORD(v6) = *((_WORD *)ctx_1 + 127);\n        v7 = (_WORD *)((char *)ctx_1 + 254);\n        *v7 = v6 + 1;\n        ctx = (comm_buffer_t *)((unsigned __int16)*v7 % 250);\n        *v7 = (_WORD)ctx;\n      }\n    }\n    else\n    {\n      v4 = (char *)ctx + 250;\n      ++*((_WORD *)ctx + 125);\n      *((_WORD *)ctx + 125) = *((unsigned __int16 *)ctx + 125) % 250;\n      ctx = (comm_buffer_t *)*((unsigned __int16 *)ctx + 125);\n      *((_WORD *)v4 + 2) = (_WORD)ctx;\n    }\n  }\n  return (int)ctx;\n}\n",
+  "lines": {
+    "total": 126,
+    "start": 1,
+    "end": 126,
+    "more": false
+  }
+}
+
+## UART1_interrupt_handler (0x80056C0)
+{
+  "name": "UART1_interrupt_handler",
+  "addr": "0x80056C0",
+  "proto": "int()",
+  "vars": [
+    {
+      "name": "v0",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v1",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v2",
+      "type": "char",
+      "loc": "reg"
+    },
+    {
+      "name": "result",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v4",
+      "type": "int",
+      "loc": "reg"
+    }
+  ],
+  "code": "int UART1_interrupt_handler()\n{\n  int v0; // r4\n  int v1; // r5\n  char v2; // r6\n  int result; // r0\n  int v4; // r0\n\n  if ( sub_8005966(1073759232, 1317) )\n  {\n    v0 = (unsigned __int16)word_20000468;\n    v1 = (unsigned __int16)word_20000466;\n    v2 = sub_8005A98(1073759232);\n    result = (v0 + 1) % 250;\n    if ( result == v1 )\n      return result;\n    ctx_[v0] = v2;\n    ++word_20000468;\n    word_20000468 = (unsigned __int16)word_20000468 % 250;\n  }\n  if ( sub_8005966(1073759232, 1574) )\n  {\n    if ( *((unsigned __int16 *)&unk_2000079A + 81 * (unsigned __int16)word_20000AC4 + 80) <= (int)(unsigned __int16)word_20000AC8\n      && (*((_WORD *)&unk_2000079A + 81 * (unsigned __int16)word_20000AC4 + 80) = 0,\n          ++word_20000AC4,\n          word_20000AC4 = (unsigned __int16)word_20000AC4 % 5,\n          word_20000AC8 = 0,\n          word_20000AC4 == word_20000AC6) )\n    {\n      sub_80059A6(1073759232, 1574, 0);\n      byte_20000ACA = 0;\n    }\n    else\n    {\n      v4 = (unsigned __int16)word_20000AC8++;\n      sub_8005AA0(1073759232, *((unsigned __int8 *)&unk_2000079A + 162 * (unsigned __int16)word_20000AC4 + v4));\n    }\n  }\n  result = sub_8005966(1073759232, 864);\n  if ( result )\n  {\n    sub_8005966(1073759232, 864);\n    return sub_8005A98(1073759232);\n  }\n  return result;\n}\n",
+  "lines": {
+    "total": 47,
+    "start": 1,
+    "end": 47,
+    "more": false
+  }
+}

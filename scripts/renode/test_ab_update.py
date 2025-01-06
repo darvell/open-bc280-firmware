@@ -2,7 +2,7 @@
 """Renode regression for A/B update slot activation.
 
 Assumes Renode exposes UART1 via BC280_UART1_PTY (e.g. /tmp/uart1) and the
-firmware was built from this repo (Meson/Ninja; see scripts/build_open_firmware.sh).
+firmware was built with RENODE_TEST=1.
 """
 
 import os

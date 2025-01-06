@@ -1,50 +1,32 @@
-.beads/beads.db*
+.beads/beads.db
 .beads/daemon.lock
 .beads/daemon.log
-.beads/last-touched
 
-# Agent/orchestrator runtime
-.agent/
-.logs/
+/renode/
+open-firmware/renode/output/
 mcp_agent_mail/
-ralph.yml
 
-# Build / output
-/build/
-/build-host/
-/build-test/
-/builddir/
-/out/
-
-# Local Python packages
-/python/
-
-# Renode local app bundle (optional; not tracked)
-renode/*.app/
-renode/output/
-
-# In-source local host builds (avoid polluting the tree)
-tests/host/host_sim
-tests/host/host_tests
-tests/host/host_tests_ui
-
-# Firmware build artifacts
+open-firmware/build/
 *.o
 *.elf
 *.map
 
-# Tooling caches
-__pycache__/
-.pytest_cache/
-.venv/
-.bv/
-.cache/
-
-# Binary dumps (debugging)
-*.bin
-
-# Beads daemon artifacts
-.beads/daemon-error
-
 # macOS
 .DS_Store
+
+# Host simulator outputs / binaries
+open-firmware/tests/host/host_sim
+open-firmware/tests/host/host_tests
+open-firmware/tests/host/host_tests_ui
+open-firmware/tests/host/test_tongsheng_bus
+open-firmware/tests/host/lcd_out/
+tests/host/lcd_out/
+open-firmware/tests/host/lcd_shots/
+open-firmware/tests/host/lcd_shots_240x320/
+open-firmware/tests/host/lcd_shots_current/
+
+# Python caches
+__pycache__/
+
+# bv (beads viewer) local config and caches
+.bv/

@@ -3,7 +3,7 @@
 
 Assumptions:
 - Renode exposes UART1 via BC280_UART1_PTY (e.g. /tmp/uart1).
-- Firmware built from the standard open-firmware image (no special build flags).
+- Firmware built with RENODE_TEST=1 so crash trigger hook is available.
 """
 
 import os

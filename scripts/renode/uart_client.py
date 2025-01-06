@@ -3,7 +3,6 @@
 Minimal UART debug-protocol client for BC280 open firmware.
 
 Designed for Renode regression tests: speaks the 0x55-framed protocol over a
-serial port, including bootloader-flag and reboot helpers for recovery flows.
 PTY (e.g. /tmp/uart1). UART1 maps to the BLE module passthrough on real hardware.
 Exercises ping, state set/dump, streaming, and reboot-to-bootloader.
 
@@ -12,7 +11,6 @@ No external deps: uses the stdlib (os.open + termios) instead of pyserial.
 
 import argparse
 import dataclasses
-import json
 import os
 import select
 import socket
@@ -24,7 +22,6 @@ from typing import Iterable, List, Optional
 
 SOF = 0x55
 MAX_PAYLOAD = 255
-PROFILE_COUNT = 5
 
 GRAPH_CHANNELS = {
     "speed": 0,
@@ -695,15 +692,6 @@ class DebugState:
         )
 
 
-CONFIG_DIFF_IGNORE: set[str] = {
-    "version",
-    "size",
-    "reserved",
-    "seq",
-    "crc32",
-}
-
-
 @dataclasses.dataclass
 class ConfigBlob:
     version: int
@@ -735,20 +723,6 @@ class ConfigBlob:
     boost_gain_q15: int
     curve_count: int
     curve: list
-
-    def diff(self, other: "ConfigBlob", ignore: set[str] | None = None) -> list[tuple[str, object, object]]:
-        if ignore is None:
-            ignore = CONFIG_DIFF_IGNORE
-        diffs: list[tuple[str, object, object]] = []
-        for field in dataclasses.fields(self):
-            name = field.name
-            if name in ignore:
-                continue
-            left = getattr(self, name)
-            right = getattr(other, name)
-            if left != right:
-                diffs.append((name, left, right))
-        return diffs
 
     @classmethod
     def defaults(cls) -> "ConfigBlob":
@@ -932,57 +906,6 @@ class ConfigBlob:
             x, y = self.curve[i] if i < len(self.curve) else (0, 0)
             curve_bytes += struct.pack(">HH", x & 0xFFFF, y & 0xFFFF)
         return payload + bytes(curve_bytes)
-
-
-def format_config_diff(base: "ConfigBlob", other: "ConfigBlob") -> list[str]:
-    diffs = base.diff(other)
-    lines: list[str] = []
-    for field, left, right in diffs:
-        lines.append(f"{field}: {left} -> {right}")
-    return lines
-
-
-def format_config_diff_output(base: "ConfigBlob", other: "ConfigBlob") -> list[str]:
-    lines = format_config_diff(base, other)
-    if not lines:
-        return ["no changes"]
-    return lines
-
-
-def config_from_json(path: str) -> "ConfigBlob":
-    with open(path, "r", encoding="utf-8") as handle:
-        data = json.load(handle)
-    cfg = ConfigBlob.defaults()
-    valid_fields = {field.name for field in dataclasses.fields(ConfigBlob)}
-    unknown = set(data.keys()) - valid_fields
-    if unknown:
-        raise ValueError(f"unknown config fields: {sorted(unknown)}")
-    for field in dataclasses.fields(ConfigBlob):
-        name = field.name
-        if name not in data:
-            continue
-        value = data[name]
-        if name == "curve":
-            if not isinstance(value, list):
-                raise ValueError("curve must be a list of [x, y] pairs")
-            pairs: list[tuple[int, int]] = []
-            for pair in value:
-                if not isinstance(pair, (list, tuple)) or len(pair) != 2:
-                    raise ValueError("curve entries must be [x, y] pairs")
-                x = int(pair[0])
-                y = int(pair[1])
-                if x < 0 or y < 0 or x > 0xFFFF or y > 0xFFFF:
-                    raise ValueError("curve values must fit in uint16")
-                pairs.append((x, y))
-            value = pairs
-        if name == "units" and value not in (0, 1):
-            raise ValueError("units must be 0 (metric) or 1 (imperial)")
-        if name == "wheel_mm" and int(value) <= 0:
-            raise ValueError("wheel_mm must be positive")
-        if name == "profile_id" and int(value) >= PROFILE_COUNT:
-            raise ValueError(f"profile_id must be 0..{PROFILE_COUNT - 1}")
-        setattr(cfg, name, value)
-    return cfg
 
 
 @dataclasses.dataclass
@@ -1310,11 +1233,6 @@ class UARTClient:
         if resp[0] != 0x81 or resp[1] != 0:
             raise ProtocolError("ping failed")
 
-    def renode_smoke(self) -> None:
-        self.ping()
-        self.config_get()
-        self.event_log_summary()
-
     def log_frame(self) -> bytes:
         resp = self._send(0x7D, b"", expect_len=None)
         if resp[0] != 0x7D:
@@ -1426,11 +1344,6 @@ class UARTClient:
         resp = self._send(0x0E, b"", expect_len=1)
         if resp[0] != 0x8E or resp[1] != 0:
             raise ProtocolError("reboot_bootloader failed")
-
-    def set_bootloader_flag(self) -> None:
-        resp = self._send(0x0B, b"", expect_len=1)
-        if resp[0] != 0x8B or resp[1] != 0:
-            raise ProtocolError("set_bootloader_flag failed")
 
     def read_stream_frame(self, timeout_ms: int = 500) -> bytes:
         deadline = time.time() + timeout_ms / 1000.0
@@ -1897,24 +1810,26 @@ class UARTClient:
 # ---------------- CLI ----------------
 
 
-def _cmd_ping(client: UARTClient, args: argparse.Namespace) -> List[str]:
+def _cmd_ping(client: UARTClient, args: argparse.Namespace) -> None:
     client.ping()
-    return ["ping: ok"]
+    print("ping: ok")
 
 
-def _cmd_log(client: UARTClient, args: argparse.Namespace) -> List[str]:
+def _cmd_log(client: UARTClient, args: argparse.Namespace) -> None:
     payload = client.log_frame()
     if len(payload) < 2:
-        return [""]
+        print("")
+        return
     code = payload[0]
     plen = payload[1]
     data = payload[2:]
     if plen != len(data):
-        return [f"code=0x{code:02x} len={plen} data={data.hex()} (len_mismatch)"]
-    return [f"code=0x{code:02x} len={plen} data={data.hex()}"]
+        print(f"code=0x{code:02x} len={plen} data={data.hex()} (len_mismatch)")
+        return
+    print(f"code=0x{code:02x} len={plen} data={data.hex()}")
 
 
-def _cmd_set_state(client: UARTClient, args: argparse.Namespace) -> List[dict]:
+def _cmd_set_state(client: UARTClient, args: argparse.Namespace) -> None:
     client.set_state(
         args.rpm,
         args.torque,
@@ -1931,18 +1846,12 @@ def _cmd_set_state(client: UARTClient, args: argparse.Namespace) -> List[dict]:
         ctrl_temp_dC=args.ctrl_temp_dc,
     )
     st = client.state_dump()
-    return [dataclasses.asdict(st)]
+    print(dataclasses.asdict(st))
 
 
-def _cmd_state_dump(
-    client: UARTClient, args: argparse.Namespace
-) -> Optional[List[dict]]:
+def _cmd_state_dump(client: UARTClient, args: argparse.Namespace) -> None:
     st = client.state_dump()
-    payload = dataclasses.asdict(st)
-    if getattr(args, "json", False):
-        return [payload]
-    print(payload)
-    return None
+    print(dataclasses.asdict(st))
 
 
 def _cmd_stream(client: UARTClient, args: argparse.Namespace) -> None:
@@ -1965,41 +1874,22 @@ def _cmd_stream(client: UARTClient, args: argparse.Namespace) -> None:
     )
 
 
-def _cmd_reboot_bootloader(client: UARTClient, args: argparse.Namespace) -> List[str]:
+def _cmd_reboot_bootloader(client: UARTClient, args: argparse.Namespace) -> None:
     client.reboot_bootloader()
-    return ["reboot command sent"]
+    print("reboot command sent")
 
 
-def _cmd_set_bootloader_flag(client: UARTClient, args: argparse.Namespace) -> List[str]:
-    client.set_bootloader_flag()
-    return ["bootloader flag set"]
-
-
-def _cmd_ring_summary(
-    client: UARTClient, args: argparse.Namespace
-) -> Optional[List[dict]]:
+def _cmd_ring_summary(client: UARTClient, args: argparse.Namespace) -> None:
     rs = client.ring_summary()
-    payload = dataclasses.asdict(rs)
-    if getattr(args, "json", False):
-        return [payload]
-    print(payload)
-    return None
+    print(dataclasses.asdict(rs))
 
 
-def _cmd_graph_summary(
-    client: UARTClient, args: argparse.Namespace
-) -> Optional[List[dict]]:
+def _cmd_graph_summary(client: UARTClient, args: argparse.Namespace) -> None:
     gs = client.graph_summary()
-    payload = dataclasses.asdict(gs)
-    if getattr(args, "json", False):
-        return [payload]
-    print(payload)
-    return None
+    print(dataclasses.asdict(gs))
 
 
-def _cmd_graph_select(
-    client: UARTClient, args: argparse.Namespace
-) -> Optional[List[dict]]:
+def _cmd_graph_select(client: UARTClient, args: argparse.Namespace) -> None:
     channel = GRAPH_CHANNELS.get(args.channel, None)
     window = GRAPH_WINDOWS.get(args.window, None)
     if channel is None:
@@ -2008,36 +1898,15 @@ def _cmd_graph_select(
         raise ProtocolError(f"unknown window '{args.window}'")
     client.graph_select(channel, window, reset=args.reset)
     gs = client.graph_summary()
-    payload = dataclasses.asdict(gs)
-    if getattr(args, "json", False):
-        return [payload]
-    print(payload)
-    return None
+    print(dataclasses.asdict(gs))
 
-def _cmd_histogram_trace(
-    client: UARTClient, args: argparse.Namespace
-) -> Optional[List[str]]:
+def _cmd_histogram_trace(client: UARTClient, args: argparse.Namespace) -> None:
     client.histogram_trace()
-    message = "histogram trace emitted"
-    if getattr(args, "json", False):
-        return [message]
-    print(message)
-    return None
+    print("histogram trace emitted")
 
-def _cmd_marker_control(
-    client: UARTClient, args: argparse.Namespace
-) -> Optional[List[str]]:
-    enabled = not args.disable
-    client.marker_control(enable=enabled)
-    message = "markers enabled" if enabled else "markers disabled"
-    if getattr(args, "json", False):
-        return [message]
-    print(message)
-    return None
-
-def _cmd_renode_smoke(client: UARTClient, args: argparse.Namespace) -> None:
-    client.renode_smoke()
-    print("renode smoke complete")
+def _cmd_marker_control(client: UARTClient, args: argparse.Namespace) -> None:
+    client.marker_control(enable=not args.disable)
+    print("markers enabled" if not args.disable else "markers disabled")
 
 def _cmd_stream_log_summary(client: UARTClient, args: argparse.Namespace) -> None:
     s = client.stream_log_summary()
@@ -2071,27 +1940,26 @@ def _cmd_crash_dump_trigger(client: UARTClient, args: argparse.Namespace) -> Non
     print(f"crash trigger sent (pc_hint=0x{addr:08x})")
 
 
-def _cmd_set_gears(client: UARTClient, args: argparse.Namespace) -> List[dict]:
+def _cmd_set_gears(client: UARTClient, args: argparse.Namespace) -> None:
     scales = None
     if args.scales:
         scales = [int(x) for x in args.scales.split(",")]
     client.set_gears(args.count, args.shape, args.min_q15, args.max_q15, scales=scales)
     st = client.debug_state()
-    return [dataclasses.asdict(st)]
+    print(dataclasses.asdict(st))
 
 
-def _cmd_set_cadence_bias(client: UARTClient, args: argparse.Namespace) -> List[dict]:
+def _cmd_set_cadence_bias(client: UARTClient, args: argparse.Namespace) -> None:
     client.set_cadence_bias(args.enabled, args.target_rpm, args.band_rpm, args.min_bias_q15)
     st = client.debug_state()
-    return [dataclasses.asdict(st)]
+    print(dataclasses.asdict(st))
 
 
 def make_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--port", default=os.environ.get("BC280_UART_PORT", "/tmp/uart1"))
     p.add_argument("--baud", type=int, default=115200)
-    p.add_argument("--renode-smoke", action="store_true", help="run Renode smoke checks")
-    sub = p.add_subparsers(dest="subcmd", required=False)
+    sub = p.add_subparsers(dest="subcmd", required=True)
 
     sub.add_parser("ping")
     sub.add_parser("log")
@@ -2118,7 +1986,6 @@ def make_arg_parser() -> argparse.ArgumentParser:
     pst.add_argument("--duration-ms", type=int, default=1000)
 
     sub.add_parser("reboot-bootloader")
-    sub.add_parser("set-bootloader-flag")
     sub.add_parser("ring-summary")
     sub.add_parser("graph-summary")
     pgs = sub.add_parser("graph-select")
@@ -2128,11 +1995,8 @@ def make_arg_parser() -> argparse.ArgumentParser:
     sub.add_parser("histogram-trace")
     pmark = sub.add_parser("marker-control")
     pmark.add_argument("--disable", action="store_true")
-    sub.add_parser("renode-smoke")
     sub.add_parser("debug-state")
     sub.add_parser("config-get")
-    pcd = sub.add_parser("config-diff")
-    pcd.add_argument("--from-file", help="baseline config JSON file", default=None)
     psw = sub.add_parser("set-profile")
     psw.add_argument("--id", type=int, required=True)
     psw.add_argument("--no-persist", action="store_true")
@@ -2174,38 +2038,6 @@ def make_arg_parser() -> argparse.ArgumentParser:
     psc.add_argument("--disable", action="store_true", help="disable stream logging")
     psc.add_argument("--period-ms", type=int, default=None)
 
-    sub.add_parser("bus-capture-summary")
-    pbc = sub.add_parser("bus-capture-control")
-    pbc.add_argument("--disable", action="store_true", help="disable bus capture")
-    pbc.add_argument("--reset", action="store_true", help="reset capture buffer")
-    pbcr = sub.add_parser("bus-capture-read")
-    pbcr.add_argument("--offset", type=int, default=0)
-    pbcr.add_argument("--limit", type=int, default=4)
-    pbci = sub.add_parser("bus-capture-inject")
-    pbci.add_argument("--bus-id", type=int, required=True)
-    pbci.add_argument("--dt-ms", type=int, required=True)
-    pbci.add_argument("--data-hex", required=True)
-    pbcrp = sub.add_parser("bus-capture-replay")
-    pbcrp.add_argument("--offset", type=int, required=True)
-    pbcrp.add_argument("--rate-ms", type=int, required=True)
-    sub.add_parser("bus-capture-replay-stop")
-
-    sub.add_parser("ble-mitm-status")
-    pbmc = sub.add_parser("ble-mitm-control")
-    pbmc.add_argument("--disable", action="store_true")
-    pbmc.add_argument(
-        "--mode",
-        choices=["peripheral", "central"],
-        default="peripheral",
-    )
-    pbmc.add_argument("--data-hex")
-    sub.add_parser("ble-mitm-capture-read")
-    sub.add_parser("ble-csc-measurement")
-    sub.add_parser("ble-cps-measurement")
-    sub.add_parser("ble-bas-level")
-    pbh = sub.add_parser("ble-hacker-exchange")
-    pbh.add_argument("--frame-hex", required=True)
-
     sub.add_parser("crash-dump-read")
     sub.add_parser("crash-dump-clear")
     sub.add_parser("crash-dump-trigger")
@@ -2213,202 +2045,84 @@ def make_arg_parser() -> argparse.ArgumentParser:
     return p
 
 
-def run_command(client: UARTClient, args: argparse.Namespace) -> Optional[List[dict | str]]:
-    output: Optional[List[dict | str]] = None
-    subcmd = args.subcmd
-    if getattr(args, "renode_smoke", False) and subcmd not in (None, "renode-smoke"):
-        raise ProtocolError("cannot combine --renode-smoke with a subcommand")
-    if subcmd is None and getattr(args, "renode_smoke", False):
-        subcmd = "renode-smoke"
-    if subcmd == "ping":
-        output = _cmd_ping(client, args)
-    elif subcmd == "log":
-        output = _cmd_log(client, args)
-    elif subcmd == "set-state":
-        output = _cmd_set_state(client, args)
-    elif subcmd == "state-dump":
-        output = _cmd_state_dump(client, args)
-    elif subcmd == "stream":
-        _cmd_stream(client, args)
-    elif subcmd == "reboot-bootloader":
-        output = _cmd_reboot_bootloader(client, args)
-    elif subcmd == "set-bootloader-flag":
-        output = _cmd_set_bootloader_flag(client, args)
-    elif subcmd == "ring-summary":
-        output = _cmd_ring_summary(client, args)
-    elif subcmd == "graph-summary":
-        output = _cmd_graph_summary(client, args)
-    elif subcmd == "graph-select":
-        output = _cmd_graph_select(client, args)
-    elif subcmd == "histogram-trace":
-        output = _cmd_histogram_trace(client, args)
-    elif subcmd == "marker-control":
-        output = _cmd_marker_control(client, args)
-    elif subcmd == "renode-smoke":
-        _cmd_renode_smoke(client, args)
-    elif subcmd == "debug-state":
-        st = client.debug_state()
-        output = [dataclasses.asdict(st)]
-    elif subcmd == "config-get":
-        cfg = client.config_get()
-        output = [dataclasses.asdict(cfg)]
-    elif subcmd == "config-diff":
-        cfg = client.config_get()
-        base = ConfigBlob.defaults()
-        if args.from_file:
-            base = config_from_json(args.from_file)
-        output = format_config_diff_output(base, cfg)
-    elif subcmd == "set-profile":
-        client.set_profile(args.id, persist=not args.no_persist)
-        st = client.debug_state()
-        output = [dataclasses.asdict(st)]
-    elif subcmd == "set-gears":
-        output = _cmd_set_gears(client, args)
-    elif subcmd == "cadence-bias":
-        output = _cmd_set_cadence_bias(client, args)
-    elif subcmd == "config-apply":
-        cfg = ConfigBlob.defaults()
-        cfg.wheel_mm = args.wheel_mm
-        cfg.units = args.units
-        cfg.profile_id = args.profile_id
-        cfg.theme = args.theme
-        cfg.flags = args.flags
-        cfg.seq = client.config_get().seq + 1
-        client.config_stage(cfg)
-        client.config_commit(reboot=args.reboot)
-        output = ["config applied"]
-    elif subcmd == "event-log-summary":
-        s = client.event_log_summary()
-        output = [dataclasses.asdict(s)]
-    elif subcmd == "event-log-read":
-        recs = client.event_log_read(args.offset, args.limit)
-        output = [dataclasses.asdict(r) for r in recs]
-    elif subcmd == "event-log-mark":
-        client.log_event_mark(args.type, args.flags)
-        output = ["event marked"]
-    elif subcmd == "stream-log-summary":
-        s = client.stream_log_summary()
-        output = [dataclasses.asdict(s)]
-    elif subcmd == "stream-log-read":
-        recs = client.stream_log_read(args.offset, args.limit)
-        output = [dataclasses.asdict(r) for r in recs]
-    elif subcmd == "stream-log-control":
-        enable = not args.disable
-        client.stream_log_control(enable=enable, period_ms=args.period_ms)
-        output = ["stream log enabled" if enable else "stream log disabled"]
-    elif subcmd == "bus-capture-summary":
-        s = client.bus_capture_summary()
-        output = [dataclasses.asdict(s)]
-    elif subcmd == "bus-capture-control":
-        enable = not args.disable
-        client.bus_capture_control(enable=enable, reset=args.reset)
-        output = ["bus capture enabled" if enable else "bus capture disabled"]
-    elif subcmd == "bus-capture-read":
-        recs = client.bus_capture_read(args.offset, args.limit)
-        output = []
-        for rec in recs:
-            item = dataclasses.asdict(rec)
-            item["data"] = rec.data.hex()
-            output.append(item)
-    elif subcmd == "bus-capture-inject":
-        data = bytes.fromhex(args.data_hex)
-        seq = client.bus_capture_inject(args.bus_id, args.dt_ms, data)
-        output = [{"seq": seq}]
-    elif subcmd == "bus-capture-replay":
-        seq = client.bus_capture_replay(args.offset, args.rate_ms)
-        output = [{"seq": seq}]
-    elif subcmd == "bus-capture-replay-stop":
-        client.bus_capture_replay_stop()
-        output = ["bus capture replay stopped"]
-    elif subcmd == "ble-mitm-status":
-        status = client.ble_mitm_status()
-        output = [dataclasses.asdict(status)]
-    elif subcmd == "ble-mitm-control":
-        enable = not args.disable
-        mode = BLE_MITM_MODE_PERIPHERAL
-        if args.mode == "central":
-            mode = BLE_MITM_MODE_CENTRAL
-        data = bytes.fromhex(args.data_hex) if args.data_hex else None
-        client.ble_mitm_control(enable=enable, mode=mode, data=data)
-        output = ["ble mitm enabled" if enable else "ble mitm disabled"]
-    elif subcmd == "ble-mitm-capture-read":
-        capture = client.ble_mitm_capture_read()
-        output = [dataclasses.asdict(capture)]
-        for rec in capture.records:
-            item = dataclasses.asdict(rec)
-            item["data"] = rec.data.hex()
-            output.append(item)
-    elif subcmd == "ble-csc-measurement":
-        meas = client.ble_csc_measurement()
-        output = [dataclasses.asdict(meas)]
-    elif subcmd == "ble-cps-measurement":
-        meas = client.ble_cps_measurement()
-        output = [dataclasses.asdict(meas)]
-    elif subcmd == "ble-bas-level":
-        level = client.ble_bas_level()
-        output = [f"ble bas level: {level}"]
-    elif subcmd == "ble-hacker-exchange":
-        frame = bytes.fromhex(args.frame_hex)
-        resp = client.ble_hacker_exchange(frame)
-        output = [f"ble hacker exchange: {resp.hex()}"]
-    elif subcmd == "crash-dump-read":
-        dump = client.crash_dump_read()
-        output = [dataclasses.asdict(dump)]
-    elif subcmd == "crash-dump-clear":
-        client.crash_dump_clear()
-        output = ["crash dump cleared"]
-    elif subcmd == "crash-dump-trigger":
-        addr = client.crash_dump_trigger()
-        output = [f"crash trigger sent (pc_hint=0x{addr:08x})"]
-    else:
-        raise AssertionError("unknown subcmd")
-    return output
-
-
-def _json_safe(value):
-    if isinstance(value, bytes):
-        return value.hex()
-    if isinstance(value, list):
-        return [_json_safe(item) for item in value]
-    if isinstance(value, dict):
-        return {key: _json_safe(val) for key, val in value.items()}
-    return value
-
-
-def format_cli_output(
-    output: Optional[List[dict | str]], json_mode: bool
-) -> List[str]:
-    if output is None:
-        return []
-    if json_mode:
-        return [json.dumps(_json_safe(output))]
-    lines = []
-    for item in output:
-        if isinstance(item, dict):
-            lines.append(str(item))
-        else:
-            lines.append(str(item))
-    return lines
-
-
 def main(argv: Optional[Iterable[str]] = None) -> int:
-    parser = make_arg_parser()
-    parser.add_argument("--json", action="store_true", help="output JSON")
-    args = parser.parse_args(list(argv) if argv is not None else None)
-    if args.renode_smoke:
-        if args.subcmd is not None:
-            parser.error("cannot combine --renode-smoke with a subcommand")
-        args.subcmd = "renode-smoke"
-    elif args.subcmd is None:
-        parser.error("a subcommand is required")
+    args = make_arg_parser().parse_args(list(argv) if argv is not None else None)
     client = UARTClient(args.port, baud=args.baud)
     try:
-        output = run_command(client, args)
+        if args.subcmd == "ping":
+            _cmd_ping(client, args)
+        elif args.subcmd == "log":
+            _cmd_log(client, args)
+        elif args.subcmd == "set-state":
+            _cmd_set_state(client, args)
+        elif args.subcmd == "state-dump":
+            _cmd_state_dump(client, args)
+        elif args.subcmd == "stream":
+            _cmd_stream(client, args)
+        elif args.subcmd == "reboot-bootloader":
+            _cmd_reboot_bootloader(client, args)
+        elif args.subcmd == "ring-summary":
+            _cmd_ring_summary(client, args)
+        elif args.subcmd == "graph-summary":
+            _cmd_graph_summary(client, args)
+        elif args.subcmd == "graph-select":
+            _cmd_graph_select(client, args)
+        elif args.subcmd == "histogram-trace":
+            _cmd_histogram_trace(client, args)
+        elif args.subcmd == "marker-control":
+            _cmd_marker_control(client, args)
+        elif args.subcmd == "debug-state":
+            st = client.debug_state()
+            print(dataclasses.asdict(st))
+        elif args.subcmd == "config-get":
+            cfg = client.config_get()
+            print(dataclasses.asdict(cfg))
+        elif args.subcmd == "set-profile":
+            client.set_profile(args.id, persist=not args.no_persist)
+            st = client.debug_state()
+            print(dataclasses.asdict(st))
+        elif args.subcmd == "set-gears":
+            _cmd_set_gears(client, args)
+        elif args.subcmd == "cadence-bias":
+            _cmd_set_cadence_bias(client, args)
+        elif args.subcmd == "config-apply":
+            cfg = ConfigBlob.defaults()
+            cfg.wheel_mm = args.wheel_mm
+            cfg.units = args.units
+            cfg.profile_id = args.profile_id
+            cfg.theme = args.theme
+            cfg.flags = args.flags
+            cfg.seq = client.config_get().seq + 1
+            client.config_stage(cfg)
+            client.config_commit(reboot=args.reboot)
+            print("config applied")
+        elif args.subcmd == "event-log-summary":
+            s = client.event_log_summary()
+            print(dataclasses.asdict(s))
+        elif args.subcmd == "event-log-read":
+            recs = client.event_log_read(args.offset, args.limit)
+            for r in recs:
+                print(dataclasses.asdict(r))
+        elif args.subcmd == "event-log-mark":
+            client.log_event_mark(args.type, args.flags)
+            print("event marked")
+        elif args.subcmd == "stream-log-summary":
+            _cmd_stream_log_summary(client, args)
+        elif args.subcmd == "stream-log-read":
+            _cmd_stream_log_read(client, args)
+        elif args.subcmd == "stream-log-control":
+            _cmd_stream_log_control(client, args)
+        elif args.subcmd == "crash-dump-read":
+            _cmd_crash_dump_read(client, args)
+        elif args.subcmd == "crash-dump-clear":
+            _cmd_crash_dump_clear(client, args)
+        elif args.subcmd == "crash-dump-trigger":
+            _cmd_crash_dump_trigger(client, args)
+        else:
+            raise AssertionError("unknown subcmd")
+        return 0
     finally:
         client.close()
-    for line in format_cli_output(output, json_mode=args.json):
-        print(line)
-    return 0
 
 
 if __name__ == "__main__":

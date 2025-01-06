@@ -5,7 +5,7 @@ import struct
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-OUT_PATH = Path(os.environ.get("BC280_SPI_FLASH_OUT", REPO_ROOT / "renode" / "flash" / "spi_flash_v2_2_8.bin")).resolve()
+OUT_PATH = Path(os.environ.get("BC280_SPI_FLASH_OUT", REPO_ROOT / "open-firmware" / "renode" / "flash" / "spi_flash_v2_2_8.bin")).resolve()
 SIZE = 0x400000  # 4 MiB
 
 # Offsets derived from IDA disassembly of sub_801B0B8 / sub_801ABD8 (V2.2.8)

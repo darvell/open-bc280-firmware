@@ -1,0 +1,35 @@
+INIT BOOTLOADER_MODE bytes=00ffffffffffffffffffffffffffffff
+READ 0x03 addr=0x3FF081
+BOOTLOADER_MODE window @0x3FF080 now=0x3FF081 out=0xFF bytes=00ffffffffffffffffffffffffffffff
+TRACE READ_DATA a=0x3FF081 out=0xFF cs=True epoch=1 mode=READ_DATA
+TRACE READ_DATA a=0x3FF082 out=0xFF cs=True epoch=1 mode=READ_DATA
+TRACE READ_DATA a=0x3FF083 out=0xFF cs=True epoch=1 mode=READ_DATA
+TRACE READ_DATA a=0x3FF084 out=0xFF cs=True epoch=1 mode=READ_DATA
+READ txn addr=0x3FF081 len=4
+READ 0x03 addr=0x3FF080
+TRACE READ_DATA a=0x3FF080 out=0x00 cs=True epoch=3 mode=READ_DATA
+TRACE READ_DATA a=0x3FF081 out=0xFF cs=True epoch=3 mode=READ_DATA
+TRACE READ_DATA a=0x3FF082 out=0xFF cs=True epoch=3 mode=READ_DATA
+TRACE READ_DATA a=0x3FF083 out=0xFF cs=True epoch=3 mode=READ_DATA
+READ txn addr=0x3FF080 len=4
+READ 0x03 addr=0x3FF000
+READ txn addr=0x3FF000 len=64
+READ 0x03 addr=0x3FF040
+READ txn addr=0x3FF040 len=1
+READ 0x03 addr=0x3FF041
+READ txn addr=0x3FF041 len=26
+READ 0x03 addr=0x3FF060
+READ txn addr=0x3FF060 len=4
+READ 0x03 addr=0x3FE100
+READ txn addr=0x3FE100 len=4
+READ 0x03 addr=0x3FE020
+READ txn addr=0x3FE020 len=4
+READ 0x03 addr=0x3FE040
+READ txn addr=0x3FE040 len=4
+READ 0x03 addr=0x3FE060
+READ txn addr=0x3FE060 len=4
+READ 0x03 addr=0x3FE080
+READ txn addr=0x3FE080 len=4
+READ 0x03 addr=0x3FB000
+READ txn addr=0x3FB000 len=16
+READ 0x03 addr=0x3FB000

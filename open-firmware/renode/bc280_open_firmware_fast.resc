@@ -1,0 +1,40 @@
+# Run the stock bootloader but replace the application region with open-firmware.
+# Assumes `make` already ran in open-firmware/ (build/open_firmware.bin exists).
+
+mach create "bc280-open-fw"
+# Platform + binaries are referenced relative to repo root (set by launcher).
+machine LoadPlatformDescription @open-firmware/renode/bc280_platform_fast.repl
+
+# Load vendor combined image (bootloader + assets) at 0x08000000.
+sysbus LoadBinary @firmware/BC280_Combined_Firmware_3.3.6_4.2.5.bin 0x08000000
+sysbus LoadBinary @firmware/BC280_Combined_Firmware_3.3.6_4.2.5.bin 0x00000000
+
+# Overlay our app at 0x08010000 (and the mirrored zero-alias).
+sysbus LoadBinary @open-firmware/build/open_firmware.bin 0x08010000
+sysbus LoadBinary @open-firmware/build/open_firmware.bin 0x00010000
+
+# Boot through the vendor bootloader reset vector so validation paths run naturally.
+cpu PC 0x080001AD
+cpu SP 0x200055B0
+
+# Ensure log/output directory exists (used by Python stubs).
+python """
+import os
+cwd = os.getcwd()
+outdir = os.environ.get('BC280_RENODE_OUTDIR') or os.path.abspath(os.path.join(cwd, 'open-firmware', 'renode', 'output'))
+try:
+    if not os.path.isdir(outdir):
+        os.makedirs(outdir)
+    # Pre-seed a marker file so callers can detect the resolved log dir.
+    with open(os.path.join(outdir, 'renode_outdir.txt'), 'w') as f:
+        f.write(outdir)
+except Exception:
+    pass
+"""
+
+# Keep peripheral ready bits sane to avoid long waits in boot init code.
+# RCC stub seeds ready bits; no explicit writes needed here.
+
+# Auto-run a short window so headless invocations produce UART output and status lines.
+# Adjust by editing this script or by appending an extra RunFor in the CLI command.
+emulation RunFor "3s"

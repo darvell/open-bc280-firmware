@@ -5,7 +5,7 @@ Validates:
 - street-legal mode rejects out-of-policy caps and logs an event
 - correct PIN allows switching to private mode
 - debug state reports mode + effective caps
-- trace lines include a mode indicator (Renode test image)
+- trace lines include a mode indicator (RENODE_TEST build)
 """
 
 import dataclasses
@@ -17,7 +17,7 @@ from uart_client import ProtocolError, UARTClient
 
 PORT = os.environ.get("BC280_UART1_PTY", "/tmp/uart1")
 OUTDIR = os.environ.get("BC280_RENODE_OUTDIR") or os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "out", "renode")
+    os.path.join(os.path.dirname(__file__), "..", "..", "open-firmware", "renode", "output")
 )
 UART_LOG = os.path.join(OUTDIR, "uart1_tx.log")
 

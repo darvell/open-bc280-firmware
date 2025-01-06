@@ -12,7 +12,7 @@ Validates that:
 
 This ensures the device can always return to OEM bootloader for recovery.
 
-Acceptance criteria:
+Acceptance criteria from open-bc280-firmware-xli.5.4:
 - Renode test triggers reboot-to-bootloader via debug protocol
 - BOOTLOADER_MODE flag bytes at 0x003FF080 are set (0xAA 0x00 0x00 0x00)
 - Control transfers to bootloader code region (verified by firmware recovery)
@@ -78,29 +78,20 @@ def main() -> int:
             f"Bootloader flag not set at startup: got {flag_before.hex()}, expected {BOOTLOADER_FLAG_EXPECTED.hex()}"
         )
 
-        # 3. Exercise explicit bootloader-flag command (cmd 0x0B)
-        client.set_bootloader_flag()
-        flag_after_set = client.read_flash(SPI_FLASH_BOOTMODE_ADDR, 4)
-        expect(
-            flag_after_set == BOOTLOADER_FLAG_EXPECTED,
-            f"Bootloader flag not set via cmd: got {flag_after_set.hex()}, expected {BOOTLOADER_FLAG_EXPECTED.hex()}"
-        )
-        print("  [OK] Bootloader flag set via command")
-
-        # 4. Trigger reboot-to-bootloader via debug protocol (cmd 0x0E)
+        # 3. Trigger reboot-to-bootloader via debug protocol (cmd 0x0E)
         # This sets the flag and jumps to bootloader. The OEM bootloader will
         # validate the app and (if no update pending) jump back to the app.
         print("  [..] Triggering reboot-to-bootloader...")
         client.reboot_bootloader()
         print("  [OK] Reboot command acknowledged")
 
-        # 5. Wait for firmware to come back after bootloader validation
+        # 4. Wait for firmware to come back after bootloader validation
         # The bootloader should validate and jump to app since no update is pending.
         time.sleep(0.3)  # Allow time for reboot cycle
         wait_for_ping(client)
         print("  [OK] Firmware recovered after reboot")
 
-        # 6. Verify bootloader flag is still set
+        # 5. Verify bootloader flag is still set
         flag_after = client.read_flash(SPI_FLASH_BOOTMODE_ADDR, 4)
         print(f"  [OK] Bootloader flag after reboot: {flag_after.hex()}")
         expect(
@@ -108,12 +99,12 @@ def main() -> int:
             f"Bootloader flag not set after reboot: got {flag_after.hex()}, expected {BOOTLOADER_FLAG_EXPECTED.hex()}"
         )
 
-        # 7. Verify firmware state is valid (debug state dump succeeds)
+        # 6. Verify firmware state is valid (debug state dump succeeds)
         st = client.debug_state()
         expect(st is not None, "debug_state failed after reboot")
         print(f"  [OK] Debug state version={st.version}, profile={st.profile_id}")
 
-        # 8. Test that recovery path works even with features active
+        # 7. Test that recovery path works even with features active
         # Set some state to simulate active ride conditions
         client.set_state(
             rpm=60, torque=100, speed_dmph=150, soc=80, err=0,

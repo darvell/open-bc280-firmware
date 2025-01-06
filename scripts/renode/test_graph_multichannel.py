@@ -16,7 +16,7 @@ from uart_client import GRAPH_CHANNELS, GRAPH_WINDOWS, ProtocolError, UARTClient
 
 PORT = os.environ.get("BC280_UART1_PTY", "/tmp/uart1")
 OUTDIR = os.environ.get("BC280_RENODE_OUTDIR") or os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "out", "renode")
+    os.path.join(os.path.dirname(__file__), "..", "..", "open-firmware", "renode", "output")
 )
 UART_LOG = os.path.join(OUTDIR, "uart1_tx.log")
 
@@ -167,7 +167,7 @@ def run_case(client: UARTClient, log_offset: int, channel: str, window: str) -> 
 
     lines, new_offset = read_log_from(UART_LOG, log_offset)
     set_states, graphs = parse_trace_lines(lines)
-    expect(set_states, f"no set_state traces for {channel}/{window} (build the Renode test image)")
+    expect(set_states, f"no set_state traces for {channel}/{window} (RENODE_TEST build required)")
 
     graphs = [g for g in graphs if g["ch"] == channel_id and g["win"] == window_id]
     expect(graphs, f"no graph traces for {channel}/{window}")

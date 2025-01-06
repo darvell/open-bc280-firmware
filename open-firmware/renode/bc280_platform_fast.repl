@@ -1,0 +1,89 @@
+nvic: IRQControllers.NVIC @ sysbus 0xE000E000
+    priorityMask: 0xF0
+    systickFrequency: 72000000
+    IRQ -> cpu@0
+cpu: CPU.CortexM @ sysbus
+    cpuType: "cortex-m4"
+    nvic: nvic
+flash0: Memory.MappedMemory @ sysbus 0x00000000
+    size: 0x00080000
+flash: Memory.MappedMemory @ sysbus 0x08000000
+    size: 0x00080000
+storage: Memory.MappedMemory @ sysbus 0x00300000
+    size: 0x00400000
+sram: Memory.MappedMemory @ sysbus 0x20000000
+    size: 0x00018000
+stm32_system_memory: Memory.MappedMemory @ sysbus 0x1FFFB000
+    size: 0x00004800
+rcc: Python.PythonPeripheral @ sysbus 0x40021000
+    size: 0x400
+    filename: "peripherals/rcc_stub.py"
+pwr: Memory.MappedMemory @ sysbus 0x40007000
+    size: 0x400
+flash_if: Python.PythonPeripheral @ sysbus 0x40022000
+    size: 0x400
+    filename: "peripherals/flash_if_stub.py"
+dma1: Python.PythonPeripheral @ sysbus 0x40020000
+    size: 0x1000
+    filename: "peripherals/dma1_stub.py"
+bitbandPeripherals: Miscellaneous.BitBanding @ sysbus <0x42000000, +0x2000000>
+    peripheralBase: 0x40000000
+bitbandSram: Miscellaneous.BitBanding @ sysbus <0x22000000, +0x200000>
+    peripheralBase: 0x20000000
+afio: Memory.MappedMemory @ sysbus 0x40010000
+    size: 0x400
+gpioA: Python.PythonPeripheral @ sysbus 0x40010800
+    size: 0x400
+    filename: "peripherals/gpioa_stub.py"
+gpioB: Python.PythonPeripheral @ sysbus 0x40010C00
+    size: 0x400
+    filename: "peripherals/gpioB_log_stub.py"
+gpioC: Python.PythonPeripheral @ sysbus 0x40011000
+    size: 0x400
+    filename: "peripherals/gpioC_log_stub.py"
+gpioD: Python.PythonPeripheral @ sysbus 0x40011400
+    size: 0x400
+    filename: "peripherals/gpioD_log_stub.py"
+gpioE: Python.PythonPeripheral @ sysbus 0x40011800
+    size: 0x400
+    filename: "peripherals/gpioE_log_stub.py"
+adc1: Python.PythonPeripheral @ sysbus 0x40012400
+    size: 0x400
+    filename: "peripherals/adc1_stub.py"
+tim1: Timers.STM32_Timer @ sysbus 0x40012C00
+    frequency: 72000000
+    initialLimit: 0xFFFF
+    -> nvic@25
+tim2: Timers.STM32_Timer @ sysbus 0x40000000
+    frequency: 72000000
+    initialLimit: 0xFFFF
+    -> nvic@28
+tim3: Timers.STM32_Timer @ sysbus 0x40000400
+    frequency: 72000000
+    initialLimit: 0xFFFF
+    -> nvic@29
+tim4: Timers.STM32_Timer @ sysbus 0x40000800
+    frequency: 72000000
+    initialLimit: 0xFFFF
+    -> nvic@30
+iwdg: Python.PythonPeripheral @ sysbus 0x40003000
+    size: 0x400
+    filename: "peripherals/iwdg_stub.py"
+uart1: UART.STM32_UART @ sysbus <0x40013800, +0x100>
+    -> nvic@37
+uart2: Python.PythonPeripheral @ sysbus 0x40004400
+    size: 0x400
+    filename: "peripherals/usart2_stub.py"
+uart4: Python.PythonPeripheral @ sysbus 0x40004C00
+    size: 0x400
+    filename: "peripherals/usart4_stub.py"
+spi1: Python.PythonPeripheral @ sysbus 0x40013000
+    size: 0x400
+    filename: "peripherals/spi1_flash_stub.py"
+spi2: Python.PythonPeripheral @ sysbus 0x40003800
+    size: 0x400
+    filename: "peripherals/spi2_flash_stub.py"
+lcd_cmd: Memory.MappedMemory @ sysbus 0x60000000
+    size: 0x20000
+lcd_data: Memory.MappedMemory @ sysbus 0x60020000
+    size: 0x20000

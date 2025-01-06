@@ -16,7 +16,7 @@ from uart_client import UARTClient, ProtocolError
 
 PORT = os.environ.get("BC280_UART1_PTY", "/tmp/uart1")
 OUTDIR = os.environ.get("BC280_RENODE_OUTDIR") or os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "out", "renode")
+    os.path.join(os.path.dirname(__file__), "..", "..", "open-firmware", "renode", "output")
 )
 UART_LOG = os.path.join(OUTDIR, "uart1_tx.log")
 
@@ -147,7 +147,7 @@ def main() -> int:
         # Enter wizard (Walk + Cruise).
         press(client, WIZ_BTN_START)
         entries = wait_for_traces(UART_LOG, min_entries=1, timeout_s=2.0)
-        expect(entries, "no wizard traces found (build the Renode test image)")
+        expect(entries, "no wizard traces found (RENODE_TEST build required)")
         last = entries[-1]
         expect(last.get("step") == WIZ_STEP_WHEEL, "wizard did not start at wheel step")
         expect(last.get("active") == 1, "wizard not active after start")

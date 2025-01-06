@@ -7,7 +7,7 @@ Scenarios covered:
 - Cruise: cruise_state cleared and output zeroed on brake.
 
 Requires Renode UART1 PTY at $BC280_UART1_PTY (defaults /tmp/uart1) and
-firmware built from the standard open-firmware image (no special build flags).
+firmware built with RENODE_TEST=1 for deterministic traces.
 """
 
 import os

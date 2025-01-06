@@ -1,0 +1,300 @@
+R off=0x0 type=READ
+W off=0x0 val=0x0 type=WRITE
+W off=0x2C val=0x9 type=WRITE
+W off=0x28 val=0x8C9F type=WRITE
+W off=0x14 val=0x1 type=WRITE
+R off=0x0 type=READ
+W off=0x0 val=0xE800 type=WRITE
+R off=0x4 type=READ
+W off=0x4 val=0x0 type=WRITE
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+R off=0xC type=READ
+W off=0xC val=0x1 type=WRITE
+R off=0x0 type=READ
+W off=0x0 val=0xE801 type=WRITE
+SCHED_START cen=1 period_us=5000 psc=0x8C9F arr=0x9 dier=0x1 cr1=0xE801
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+TICK cen=1 uie=1 sr=0x1 period_us=5000
+R off=0x10 type=READ
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0x0 type=WRITE
+W off=0x28 val=0x8C9F type=WRITE
+R off=0x0 type=READ
+W off=0x0 val=0xE801 type=WRITE
+R off=0x0 type=READ
+W off=0x0 val=0xE801 type=WRITE
+R off=0x0 type=READ
+W off=0x0 val=0xE801 type=WRITE
+W off=0x2C val=0x9 type=WRITE
+R off=0x0 type=READ
+W off=0x0 val=0xE801 type=WRITE
+R off=0x0 type=READ
+W off=0x0 val=0xE801 type=WRITE
+R off=0x14 type=READ
+W off=0x14 val=0x1 type=WRITE
+W off=0x10 val=0xFFFFFFFE type=WRITE
+R off=0xC type=READ
+W off=0xC val=0x1 type=WRITE
+R off=0x0 type=READ
+W off=0x0 val=0xE801 type=WRITE
+TICK cen=1 uie=1 sr=0xFFFFFFFF period_us=5000
+TICK cen=1 uie=1 sr=0xFFFFFFFF period_us=5000
+TICK cen=1 uie=1 sr=0xFFFFFFFF period_us=5000
+TICK cen=1 uie=1 sr=0xFFFFFFFF period_us=5000
+TICK cen=1 uie=1 sr=0xFFFFFFFF period_us=5000
+TICK cen=1 uie=1 sr=0xFFFFFFFF period_us=5000
+TICK cen=1 uie=1 sr=0xFFFFFFFF period_us=5000
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0xFFFFFFFE type=WRITE
+TICK cen=1 uie=1 sr=0xFFFFFFFF period_us=5000
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0xFFFFFFFE type=WRITE
+TICK cen=1 uie=1 sr=0xFFFFFFFF period_us=5000
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0xFFFFFFFE type=WRITE
+TICK cen=1 uie=1 sr=0xFFFFFFFF period_us=5000
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0xFFFFFFFE type=WRITE
+TICK cen=1 uie=1 sr=0xFFFFFFFF period_us=5000
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0xFFFFFFFE type=WRITE
+TICK cen=1 uie=1 sr=0xFFFFFFFF period_us=5000
+R off=0xC type=READ
+R off=0x10 type=READ
+W off=0x10 val=0xFFFFFFFE type=WRITE
+TICK cen=1 uie=1 sr=0xFFFFFFFF period_us=5000
+R off=0xC type=READ

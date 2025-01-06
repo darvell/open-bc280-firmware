@@ -17,7 +17,7 @@ from uart_client import GRAPH_CHANNELS, GRAPH_WINDOWS, ProtocolError, UARTClient
 
 PORT = os.environ.get("BC280_UART1_PTY", "/tmp/uart1")
 OUTDIR = os.environ.get("BC280_RENODE_OUTDIR") or os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "out", "renode")
+    os.path.join(os.path.dirname(__file__), "..", "..", "open-firmware", "renode", "output")
 )
 UART_LOG = os.path.join(OUTDIR, "uart1_tx.log")
 
@@ -114,7 +114,7 @@ def main() -> int:
 
         set_states, graphs = parse_trace_log(UART_LOG)
         expect(set_states, "no set_state traces found")
-        expect(graphs, "no graph traces found (build the Renode test image)")
+        expect(graphs, "no graph traces found (RENODE_TEST build required)")
 
         # Ignore any graph ticks before the first set_state.
         first_ms = set_states[0][0]

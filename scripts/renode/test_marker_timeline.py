@@ -16,7 +16,7 @@ from uart_client import GRAPH_CHANNELS, GRAPH_WINDOWS, ProtocolError, UARTClient
 
 PORT = os.environ.get("BC280_UART1_PTY", "/tmp/uart1")
 OUTDIR = os.environ.get("BC280_RENODE_OUTDIR") or os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "out", "renode")
+    os.path.join(os.path.dirname(__file__), "..", "..", "open-firmware", "renode", "output")
 )
 UART_LOG = os.path.join(OUTDIR, "uart1_tx.log")
 
@@ -154,7 +154,7 @@ def main() -> int:
         expect(len(recs) >= 4, f"expected >=4 new events, got {len(recs)}")
 
         markers, graphs = parse_trace_log(UART_LOG)
-        expect(graphs, "no graph traces found (build the Renode test image)")
+        expect(graphs, "no graph traces found (RENODE_TEST build required)")
         expect(markers, "no marker traces found (enable markers to test)")
 
         last = markers[-1]

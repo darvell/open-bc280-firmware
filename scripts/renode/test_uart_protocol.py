@@ -10,9 +10,8 @@ so that the USART1 stub bridges to a host PTY. It exercises:
 Usage:
   BC280_UART1_PTY=/tmp/uart1 ./scripts/renode/test_uart_protocol.py
 
-Run via the Renode harness/CI: the caller should launch Renode separately
-(e.g. through scripts/renode_smoke.sh or a dedicated test harness) and set
-the PTY env.
+Run via make or CI: the caller should launch Renode separately (e.g. through
+scripts/renode_smoke.sh or a dedicated test harness) and set the PTY env.
 """
 
 import os
@@ -23,7 +22,7 @@ from uart_client import ProtocolError, UARTClient, TelemetryV1
 
 PORT = os.environ.get("BC280_UART1_PTY", "/tmp/uart1")
 OUTDIR = os.environ.get("BC280_RENODE_OUTDIR") or os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "out", "renode")
+    os.path.join(os.path.dirname(__file__), "..", "..", "open-firmware", "renode", "output")
 )
 UART_LOG = os.path.join(OUTDIR, "uart1_tx.log")
 STREAM_PERIOD_MS = 200
@@ -59,9 +58,6 @@ def main() -> int:
     client = UARTClient(PORT, baud=115200, timeout=0.5)
     try:
         client.ping()
-
-        # Set bootloader flag (recovery path uses this without reboot).
-        client.set_bootloader_flag()
 
         # Set a known state and verify roundtrip via dump.
         want = dict(rpm=220, torque=50, speed_dmph=123, soc=87, err=1)
@@ -109,7 +105,7 @@ def main() -> int:
         # Give firmware a moment to emit trace/status lines.
         time.sleep(0.2)
 
-        # Validate Renode trace output when present.
+        # Validate Renode trace output when RENODE_TEST is enabled.
         if os.path.exists(UART_LOG):
             with open(UART_LOG, "r", errors="ignore") as f:
                 lines = [ln.strip() for ln in f.readlines() if "[TRACE]" in ln]

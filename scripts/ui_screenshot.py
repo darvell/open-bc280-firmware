@@ -22,17 +22,8 @@ from pathlib import Path
 from PIL import Image
 
 
-def run(cmd: list[str], env: dict[str, str], *, cwd: Path | None = None) -> None:
-    subprocess.run(cmd, env=env, cwd=cwd, check=True)
-
-
-def ensure_host_sim_built(repo_root: Path, env: dict[str, str]) -> Path:
-    try:
-        run(["meson", "setup", "build-host"], env=env, cwd=repo_root)
-    except subprocess.CalledProcessError:
-        run(["meson", "setup", "--reconfigure", "build-host"], env=env, cwd=repo_root)
-    run(["ninja", "-C", "build-host", "tests/host/host_sim"], env=env, cwd=repo_root)
-    return repo_root / "build-host/tests/host/host_sim"
+def run(cmd: list[str], env: dict[str, str]) -> None:
+    subprocess.run(cmd, env=env, check=True)
 
 
 def ppm_to_png(ppm: Path, png: Path, scale: int) -> None:
@@ -51,15 +42,14 @@ def main() -> None:
     ap.add_argument("--all", action="store_true", help="render all pages in ui.h enum")
     ap.add_argument("--steps", type=int, default=1, help="BC280_SIM_STEPS (default: 1)")
     ap.add_argument("--scale", type=int, default=4, help="PNG scale factor (default: 4)")
-    ap.add_argument("--outdir", default="out/ui_shots", help="output folder")
+    ap.add_argument("--outdir", default="open-firmware/tests/host/lcd_shots", help="output folder")
     args = ap.parse_args()
 
     repo = Path(__file__).resolve().parents[1]
     outdir = (repo / args.outdir).resolve()
 
     # Build once.
-    base_env = os.environ.copy()
-    host_sim = ensure_host_sim_built(repo, base_env)
+    run(["make", "-C", "open-firmware", "sim-host"], env=os.environ.copy())
 
     pages = [args.page]
     if args.all:
@@ -73,7 +63,7 @@ def main() -> None:
         env["BC280_SIM_STEPS"] = str(args.steps)
         env["BC280_SIM_FORCE_PAGE"] = str(page)
 
-        run([str(host_sim)], env=env, cwd=repo)
+        run(["open-firmware/tests/host/host_sim"], env=env)
 
         ppm = outdir / "host_lcd_latest.ppm"
         png = outdir / f"{name}.png"
@@ -83,3 +73,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

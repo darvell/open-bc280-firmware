@@ -1,0 +1,27 @@
+# Run the stock bootloader + vendor application (no open-firmware overlay).
+
+mach create "bc280-vendor"
+# Platform + binaries are referenced relative to repo root (set by launcher).
+machine LoadPlatformDescription @open-firmware/renode/bc280_platform_fast.repl
+
+# Load vendor combined image (bootloader + assets + vendor app) at 0x08000000.
+sysbus LoadBinary @firmware/BC280_Combined_Firmware_3.3.6_4.2.5.bin 0x08000000
+sysbus LoadBinary @firmware/BC280_Combined_Firmware_3.3.6_4.2.5.bin 0x00000000
+
+# Boot through the vendor bootloader reset vector so validation paths run naturally.
+cpu PC 0x080001AD
+cpu SP 0x200055B0
+
+# Ensure log/output directory exists (used by Python stubs).
+python """
+import os
+cwd = os.getcwd()
+outdir = os.environ.get('BC280_RENODE_OUTDIR') or os.path.abspath(os.path.join(cwd, 'open-firmware', 'renode', 'output'))
+try:
+    if not os.path.isdir(outdir):
+        os.makedirs(outdir)
+    with open(os.path.join(outdir, 'renode_outdir.txt'), 'w') as f:
+        f.write(outdir)
+except Exception:
+    pass
+"""

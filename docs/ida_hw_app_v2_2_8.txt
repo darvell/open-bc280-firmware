@@ -1,0 +1,1003 @@
+# IDA extracts: APP V2.2.8
+## APP_initialize_default_configuration (0x801A770)
+{
+  "name": "APP_initialize_default_configuration",
+  "addr": "0x801A770",
+  "proto": "int(void)",
+  "vars": [
+    {
+      "name": "i",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "",
+      "type": "int",
+      "loc": "reg"
+    }
+  ],
+  "code": "int APP_initialize_default_configuration(void)\n{\n  unsigned int i; // r4\n\n  for ( i = 0; i < 0xD; i = (unsigned __int8)(i + 1) )\n    byte_20001E60[i] = *((_BYTE *)&dword_8026234[20] + i);\n  n48 = 48;\n  byte_20001E21 = 1;\n  n320 = 320;\n  n3_0 = 3;\n  byte_20001E05 = 1;\n  level = 5;\n  n10_0 = 10;\n  n5 = 5;\n  n10000 = 10000;\n  n2_0 = 2;\n  byte_20001E0F = 1;\n  n2_1 = 2;\n  byte_20001E11 = 1;\n  byte_20001E07 = 0;\n  n2_2 = 2;\n  word_20001E2C = 0;\n  dword_20001E24 = 0;\n  dword_20001E30 = 0;\n  dword_20001E34 = 0;\n  dword_20001E44 = 0;\n  flt_20001E38 = 0.0;\n  dword_20001E3C = 0;\n  word_20001E40 = 0;\n  word_20001D7E = 0;\n  word_20001E48 = 0;\n  word_20001E4A = 0;\n  dword_20001E4C = 0;\n  byte_20001E52 = 1;\n  byte_20001E53 = 1;\n  n2019 = 2019;\n  dword_20001E54 = 0;\n  dword_20001E58 = 0;\n  byte_20001E5E = 1;\n  n2019_0 = 2019;\n  n2_3 = 2;\n  byte_20001DE5 = 1;\n  byte_20001DE6 = 0;\n  n64 = 64;\n  n2_4 = 2;\n  byte_20001DE9 = 0;\n  byte_20001DEA = 0;\n  n15000 = 15000;\n  word_20001DEE = -23536;\n  n2_5 = 2;\n  byte_20001DF1 = 0;\n  byte_20001DF3 = 0;\n  byte_20001DF2 = 1;\n  n3_1 = 3;\n  n3_2 = 3;\n  n5_0 = 5;\n  byte_20001DF7 = 0;\n  n55 = 55;\n  n100 = 100;\n  byte_20001DFA = 0;\n  byte_20001DFB = 0;\n  n6_0 = 6;\n  byte_20001DFD = 1;\n  n2_6 = 2;\n  n70 = 70;\n  byte_20001E00 = 1;\n  byte_20001E01 = 0;\n  n3 = 12;\n  n60 = 60;\n  n160 = 290;\n  n1276 = 2355;\n  n3_3 = 3;\n  n6_1 = 6;\n  n750 = 750;\n  n7200 = 7200;\n  n260_0 = 260;\n  n40_0 = 40;\n  byte_20001E13 = 0;\n  byte_20001E14 = 1;\n  byte_20001E15 = 0;\n  byte_20001E02 = 1;\n  word_20001DDE = 0;\n  word_20001DE0 = 0;\n  byte_20001DE2 = 1;\n  n65 = 65;\n  n49 = 49;\n  sub_801AA40();\n  return sub_801A9F0(1);\n}\n",
+  "lines": {
+    "total": 90,
+    "start": 1,
+    "end": 90,
+    "more": false
+  }
+}
+
+## APP_BLE_UART_CommandProcessor (0x80112C0)
+{
+  "name": "APP_BLE_UART_CommandProcessor",
+  "addr": "0x80112C0",
+  "proto": "int __fastcall(struct BLECommBuffer *ble_buffer)",
+  "vars": [
+    {
+      "name": "ble_buffer",
+      "type": "struct BLECommBuffer *",
+      "loc": "reg"
+    },
+    {
+      "name": "v1",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v2",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "n102",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v5",
+      "type": "char *",
+      "loc": "reg"
+    },
+    {
+      "name": "n102_2",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v7",
+      "type": "bool",
+      "loc": "reg"
+    },
+    {
+      "name": "v8",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "v9",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "i",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "i_1",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v12",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "j",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v14",
+      "type": "char *",
+      "loc": "reg"
+    },
+    {
+      "name": "v15",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v16",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v17",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v18",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v19",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v20",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v21",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v22",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v23",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v24",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v25",
+      "type": "bool *",
+      "loc": "reg"
+    },
+    {
+      "name": "v26",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v27",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v28",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v29",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v30",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v31",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v32",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v33",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v34",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v35",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v36",
+      "type": "bool *",
+      "loc": "reg"
+    },
+    {
+      "name": "v37",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v38",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v39",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v40",
+      "type": "int[2]",
+      "loc": "stack"
+    },
+    {
+      "name": "timestamp_high",
+      "type": "int",
+      "loc": "stack"
+    },
+    {
+      "name": "timestamp_low",
+      "type": "int",
+      "loc": "stack"
+    },
+    {
+      "name": "n102_1",
+      "type": "int",
+      "loc": "stack"
+    }
+  ],
+  "code": "int __fastcall APP_BLE_UART_CommandProcessor(struct BLECommBuffer *ble_buffer)\n{\n  int v1; // r2\n  int v2; // r3\n  int n102; // r0\n  char *v5; // r4\n  int n102_2; // r0\n  bool v7; // zf\n  unsigned int v8; // r7\n  unsigned int v9; // r8\n  int i; // r6\n  int i_1; // r10\n  int v12; // r0\n  int j; // r6\n  char *v14; // r0\n  int v15; // r1\n  int v16; // r2\n  int v17; // r3\n  int v18; // r1\n  int v19; // r2\n  int v20; // r3\n  int v21; // r0\n  int v22; // r1\n  int v23; // r2\n  int v24; // r3\n  bool *v25; // r0\n  int v26; // r1\n  int v27; // r2\n  int v28; // r3\n  int v29; // r0\n  int v30; // r1\n  int v31; // r2\n  int v32; // r3\n  int v33; // r1\n  int v34; // r2\n  int v35; // r3\n  bool *v36; // r0\n  int v37; // r1\n  int v38; // r2\n  int v39; // r3\n  int v40[2]; // [sp+8h] [bp-14h] BYREF\n  int timestamp_high; // [sp+10h] [bp-Ch]\n  int timestamp_low; // [sp+14h] [bp-8h]\n  int n102_1; // [sp+18h] [bp-4h]\n\n  n102 = 102;\n  n102_1 = 102;\n  if ( ble_buffer )\n  {\n    n102 = *((unsigned __int16 *)ble_buffer + 489);\n    if ( *((unsigned __int16 *)ble_buffer + 488) != n102 )\n    {\n      v5 = (char *)ble_buffer + 154 * *((unsigned __int16 *)ble_buffer + 488) + 206;\n      if ( v5[2] != 85 )\n      {\n        n102 = (unsigned __int16)++*((_WORD *)ble_buffer + 488) % 5;\n        *((_WORD *)ble_buffer + 488) = n102;\n        return n102;\n      }\n      n102_1 = (unsigned __int8)v5[3];\n      n102_2 = n102_1;\n      if ( n102_1 == 36 )\n        goto LABEL_77;\n      if ( n102_1 > 36 )\n      {\n        if ( n102_1 == 55 )\n        {\n          if ( v5[5] == 1 )\n          {\n            n102_2 = sub_8011F08();\n          }\n          else if ( v5[5] == 2 )\n          {\n            n102_2 = sub_8012018();\n          }\n          else\n          {\n            n102_2 = (unsigned __int8)v5[5];\n            if ( n102_2 == 3 )\n              n102_2 = (int)ble_send_status_ext3();\n          }\n          goto LABEL_77;\n        }\n        if ( n102_1 > 55 )\n        {\n          if ( n102_1 == 96 )\n          {\n            n102_2 = (int)APP_send_motion_data_response();\n            goto LABEL_77;\n          }\n          if ( n102_1 == 99 )\n          {\n            v21 = sub_8020AF4(21);\n            n102_2 = sub_801B1F0(v21, v22, v23, v24);\n            if ( n102_2 )\n              goto LABEL_77;\n            v25 = ble_send_time_snapshot();\n            n102_2 = has_more_history_data((int)v25, v26, v27, v28);\n            if ( !n102_2 )\n              goto LABEL_77;\n          }\n          else\n          {\n            v7 = n102_1 == 101;\n            if ( n102_1 != 101 )\n              goto LABEL_12;\n            v29 = sub_8020AF4(21);\n            n102_2 = sub_801B1F0(v29, v30, v31, v32);\n            if ( n102_2 )\n              goto LABEL_77;\n            advance_trip_data_pointer(0, v33, v34, v35);\n            v36 = ble_send_time_snapshot();\n            n102_2 = has_more_history_data((int)v36, v37, v38, v39);\n            if ( !n102_2 )\n              goto LABEL_77;\n          }\n          n102_2 = sub_802090C(21, 0x1388u, (int)sub_801244A, -1, -1, 1);\n          goto LABEL_77;\n        }\n        if ( n102_1 == 38 )\n          goto LABEL_77;\n        if ( n102_1 == 48 )\n        {\n          n102_2 = sub_80120E4();\n          goto LABEL_77;\n        }\n        v7 = n102_1 == 50;\n        if ( n102_1 == 50 )\n        {\n          n102_2 = (int)APP_handle_set_instrument_control(\n                          (unsigned __int8)v5[5],\n                          (unsigned __int8)v5[6],\n                          (unsigned __int8)v5[7]);\n          goto LABEL_77;\n        }\n      }\n      else\n      {\n        if ( n102_1 == 6 )\n        {\n          LOWORD(timestamp_high) = (unsigned __int8)v5[6] + 2000;\n          HIWORD(timestamp_high) = *(_WORD *)(v5 + 7);\n          LOWORD(timestamp_low) = *(_WORD *)(v5 + 9);\n          BYTE2(timestamp_low) = v5[11];\n          if ( validate_and_set_datetime(\n                 (unsigned __int16)timestamp_high,\n                 BYTE2(timestamp_high),\n                 HIBYTE(timestamp_high),\n                 (unsigned __int8)timestamp_low,\n                 BYTE1(timestamp_low),\n                 BYTE2(timestamp_low)) == -1 )\n          {\n            n102_2 = (int)ble_send_status_response(7, 1);\n          }\n          else\n          {\n            if ( sub_801D1B0() == 2 && byte_20003C70 != 1 )\n              system_prepare_poweroff_sequence(1);\n            if ( !byte_20003C70 )\n            {\n              sub_8020AF4(12);\n              v8 = 3600 * (unsigned __int8)timestamp_low + 60 * BYTE1(timestamp_low) + BYTE2(timestamp_low);\n              if ( dword_20003CAC >= v8 )\n              {\n                v9 = (dword_20003CAC - v8) / 0x3C;\n                for ( i = 0; (unsigned __int16)::i > i && word_20003CB0[5 * i + 3] < v9; i = (unsigned __int16)(i + 1) )\n                  ;\n                i_1 = (unsigned __int16)::i;\n                ::i = i - 1;\n                v12 = datetime_to_timestamp(timestamp_high, timestamp_low);\n                timestamp_to_datetime(v12 - 86400, (int)v40);\n                APP_process_activity_data_with_timestamps(\n                  v40[0],\n                  v40[1],\n                  (struct ActivityDataBuffer *)&activity_data_,\n                  86400 - (dword_20003CAC - v8));\n                sub_8010204(word_20003CB0, 10 * ((unsigned __int16)::i + 1));\n                for ( j = (unsigned __int16)::i; j < i_1; j = (unsigned __int16)(j + 1) )\n                {\n                  if ( word_20003CB0[5 * j + 3] <= v9 )\n                    word_20003CB0[5 * j + 3] = 0;\n                  else\n                    word_20003CB0[5 * j + 3] -= v9;\n                }\n                ::i = i_1;\n                APP_process_activity_data_with_timestamps(\n                  timestamp_high,\n                  timestamp_low,\n                  (struct ActivityDataBuffer *)&activity_data_,\n                  0);\n              }\n              else\n              {\n                APP_process_activity_data_with_timestamps(\n                  timestamp_high,\n                  timestamp_low,\n                  (struct ActivityDataBuffer *)&activity_data_,\n                  v8 - dword_20003CAC);\n              }\n              sub_8010204(&activity_data_, 2888);\n            }\n            byte_20003C70 = 1;\n            v14 = ble_send_status_response(7, 0);\n            n102_2 = sub_801B1F0(v14, v15, v16, v17);\n            if ( !n102_2 )\n            {\n              n102_2 = has_more_history_data(0, v18, v19, v20);\n              if ( n102_2 )\n                n102_2 = sub_802090C(21, 0x1388u, (int)sub_801244A, -1, -1, 1);\n            }\n          }\n          goto LABEL_77;\n        }\n        if ( n102_1 <= 6 )\n        {\n          if ( n102_1 )\n          {\n            if ( n102_1 == 2 )\n            {\n              if ( *((unsigned __int8 *)&dword_802B24C[64 * (unsigned __int8)v5[5] - 45] + (unsigned __int8)v5[6]) == (unsigned __int8)v5[7]\n                && *((unsigned __int8 *)&dword_802B24C[64 * (unsigned __int8)v5[8] - 45] + (unsigned __int8)v5[9]) == (unsigned __int8)v5[10]\n                && *((unsigned __int8 *)&dword_802B24C[64 * (unsigned __int8)v5[11] - 45] + (unsigned __int8)v5[12]) == (unsigned __int8)v5[13] )\n              {\n                n21_1 = 1;\n                sub_802090C(20, 0x3E8u, (int)BLE_send_error_codes_response, (unsigned __int8)n2_7, -1, 1);\n                ble_send_status_response(3, 0);\n              }\n              else\n              {\n                ble_send_status_response(3, 1);\n                sub_802090C(22, 0x3E8u, (int)ble_disconnect_active_connection, -1, 1, 1);\n              }\n              n102_2 = sub_8020AF4(19);\n              goto LABEL_77;\n            }\n            v7 = n102_1 == 4;\n            goto LABEL_12;\n          }\n          n102_2 = (int)ble_send_status_response(1, 1);\nLABEL_77:\n          nullsub_6(n102_2);\n          n102 = (unsigned __int16)++*((_WORD *)ble_buffer + 488) % 5;\n          *((_WORD *)ble_buffer + 488) = n102;\n          return n102;\n        }\n        if ( n102_1 == 9 )\n        {\n          n102_2 = sub_8020AF4(20);\n          goto LABEL_77;\n        }\n        if ( n102_1 == 32 )\n        {\n          sub_801DB64(0x3FF080u, 43690, v1, v2);\n          n102_2 = validate_firmware_header((int *)0x8000000);\n          goto LABEL_77;\n        }\n        v7 = n102_1 == 34;\n        if ( n102_1 == 34 )\n          goto LABEL_77;\n      }",
+  "lines": {
+    "total": 269,
+    "start": 1,
+    "end": 260,
+    "more": true
+  }
+}
+
+## ble_cmd_buf_scan_timer (0x8012730)
+{
+  "name": "ble_cmd_buf_scan_timer",
+  "addr": "0x8012730",
+  "proto": "int()",
+  "vars": [
+    {
+      "name": "result",
+      "type": "int",
+      "loc": "reg"
+    }
+  ],
+  "code": "// Timer callback: clears ble_cmd_len; scans ble_cmd_buf for \"TTM:CONNECTED\" or \"TTM:DISCONNECT\"; sets ble_link_authenticated accordingly and arms disconnect watchdog.\nint ble_cmd_buf_scan_timer()\n{\n  int result; // r0\n\n  byte_20000E1A = 0;\n  if ( uart_string_search(byte_20003524, \"TTM:CONNECTED\") != -1 )\n  {\n    n21_1 = 1;\n    sub_802090C(19, 0x2710u, (int)ble_disconnect_active_connection, 0, 1, 1);\n  }\n  result = uart_string_search(byte_20003524, \"TTM:DISCONNECT\");\n  if ( result != -1 )\n  {\n    n21_1 = 0;\n    return 0;\n  }\n  return result;\n}\n",
+  "lines": {
+    "total": 20,
+    "start": 1,
+    "end": 20,
+    "more": false
+  }
+}
+
+## app_populate_info_block (0x801B5FC)
+{
+  "name": "app_populate_info_block",
+  "addr": "0x801B5FC",
+  "proto": "char *()",
+  "vars": [
+    {
+      "name": "i",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "j",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "result",
+      "type": "char *",
+      "loc": "reg"
+    },
+    {
+      "name": "buffer",
+      "type": "unsigned __int8[32]",
+      "loc": "stack"
+    },
+    {
+      "name": "buffer_",
+      "type": "int",
+      "loc": "stack"
+    }
+  ],
+  "code": "// Initialize app info/advertisement block with app FW version string (\"B_JH_FW_APP_DT_BC280_V2.2.8\") and various calibration/timing defaults; validates NVM and writes defaults if mismatched.\nchar *app_populate_info_block()\n{\n  int i; // r4\n  unsigned int j; // r4\n  char *result; // r0\n  unsigned __int8 buffer[32]; // [sp+4h] [bp-24h] BYREF\n  int buffer_; // [sp+24h] [bp-4h] BYREF\n\n  n20208 = 20208;\n  n1200 = 1200;\n  n2000 = 2000;\n  n720 = 720;\n  byte_20001D89 = -48;\n  for ( i = 0; i < 3; ++i )\n    byte_20001D86[i] = *((_BYTE *)&dword_801B7FC + i);\n  byte_20001D8A = 0;\n  n2_8 = 2;\n  n2_9 = 2;\n  n8_0 = 8;\n  dword_20001D00 = MEMORY[0x1FFFF7E8];\n  dword_20001D04 = MEMORY[0x1FFFF7EC];\n  dword_20001D08 = MEMORY[0x1FFFF7F0];\n  sprintf((int)&unk_20001D0C, \"%08lX%08lX%08lX\", MEMORY[0x1FFFF7F0], MEMORY[0x1FFFF7EC]);\n  byte_20001F42 = 0;\n  byte_20001D40 = 0;\n  byte_20001D41 = 0;\n  byte_20001D42 = 0;\n  byte_20001D44 = 1;\n  byte_20001D45 = 0;\n  n0x8C3C = -25536;\n  n0x1F4 = 0;\n  byte_20001D2F = 0;\n  byte_20001D32 = 0;\n  byte_20001D33 = 0;\n  word_20001D48 = 0;\n  dword_20001D4C = 0;\n  n2_7 = 0;\n  byte_20001D52 = 0;\n  byte_20001D53 = 0;\n  byte_20001D54 = 0;\n  byte_20001D55 = 0;\n  n500 = 500;\n  n100_0 = 100;\n  n2 = n2_1;\n  byte_20001D58 = byte_20001E07;\n  word_20001D5A = 0;\n  byte_20001D5C = 0;\n  byte_20001D5D = 0;\n  word_20001D5E = 0;\n  n957 = 957;\n  n1117 = 1117;\n  n1276_0 = 1276;\n  n1436 = 1436;\n  n1595 = 1595;\n  n1755 = 1755;\n  n1914 = 1914;\n  n2074 = 2074;\n  n2153 = 2153;\n  n2193 = 2193;\n  n2233 = 2233;\n  n2313 = 2313;\n  n2193_0 = 2193;\n  byte_20001C00[0] = 27;\n  for ( j = 0; j < 0x1B; ++j )\n    byte_20001C00[j + 1] = aBJhFwAppDtBc28[j];\n  flash_read_data_block((unsigned __int8 *)&buffer_, 0x3FF060u, 1);\n  if ( (unsigned __int8)buffer_ != 27 )\n  {\n    buffer_ = 27;\n    sub_801DB2A(4190304, 27);\n  }\n  flash_read_data_block(buffer, 0x3FF061u, (unsigned __int8)buffer_);\n  result = (char *)compare_buffers((int)buffer, (int)\"B_JH_FW_APP_DT_BC280_V2.2.8\", (unsigned __int8)buffer_);\n  if ( !result )\n    return write_flash_safely(\"B_JH_FW_APP_DT_BC280_V2.2.8\", 0x3FF061u, (unsigned __int8)buffer_);\n  return result;\n}\n",
+  "lines": {
+    "total": 79,
+    "start": 1,
+    "end": 79,
+    "more": false
+  }
+}
+
+## flash_read_data_block (0x801D8FC)
+{
+  "name": "flash_read_data_block",
+  "addr": "0x801D8FC",
+  "proto": "int(unsigned __int8 *buffer, unsigned int flash_address, int read_length)",
+  "vars": [
+    {
+      "name": "buffer",
+      "type": "unsigned __int8 *",
+      "loc": "reg"
+    },
+    {
+      "name": "flash_address",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "read_length",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "buffer_1",
+      "type": "unsigned __int8 *",
+      "loc": "reg"
+    },
+    {
+      "name": "",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "read_length_1",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v6",
+      "type": "bool",
+      "loc": "reg"
+    },
+    {
+      "name": "",
+      "type": "int",
+      "loc": "reg"
+    }
+  ],
+  "code": "int flash_read_data_block(unsigned __int8 *buffer, unsigned int flash_address, int read_length)\n{\n  unsigned __int8 *buffer_1; // r4\n  int read_length_1; // r6\n  bool v6; // zf\n\n  buffer_1 = buffer;\n  read_length_1 = read_length;\n  if ( buffer && read_length )\n  {\n    sub_8018E14(1073809408, 16);\n    spi_transmit_byte_with_wait(3u);\n    spi_transmit_byte_with_wait(BYTE2(flash_address));\n    spi_transmit_byte_with_wait(BYTE1(flash_address));\n    spi_transmit_byte_with_wait(flash_address);\n    while ( 1 )\n    {\n      v6 = read_length_1 == 0;\n      read_length_1 = (unsigned __int16)(read_length_1 - 1);\n      if ( v6 )\n        break;\n      *buffer_1++ = spi_transmit_byte_with_wait(0);\n    }\n    return sub_8018E18(1073809408, 16);\n  }\n  return (int)buffer;\n}\n",
+  "lines": {
+    "total": 28,
+    "start": 1,
+    "end": 28,
+    "more": false
+  }
+}
+
+## bl_spi_flash_write_data (0x801DA04)
+{
+  "name": "bl_spi_flash_write_data",
+  "addr": "0x801DA04",
+  "proto": "int(unsigned __int8 *src_data, unsigned int flash_address, unsigned int length)",
+  "vars": [
+    {
+      "name": "src_data",
+      "type": "unsigned __int8 *",
+      "loc": "reg"
+    },
+    {
+      "name": "flash_address",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "length",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "src_data_1",
+      "type": "unsigned __int8 *",
+      "loc": "reg"
+    },
+    {
+      "name": "flash_address_1",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v6",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v7",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v8",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v9",
+      "type": "bool",
+      "loc": "reg"
+    },
+    {
+      "name": "flash_address_2",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "v11",
+      "type": "unsigned __int8 *",
+      "loc": "reg"
+    },
+    {
+      "name": "length_1",
+      "type": "__int16",
+      "loc": "reg"
+    },
+    {
+      "name": "v13",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "",
+      "type": "int",
+      "loc": "reg"
+    }
+  ],
+  "code": "// Optimized flash memory write function with block processing. Handles large transfers by breaking them into 256-byte chunks for efficient SPI flash programming. Parameters: src_data, flash_address, length\nint bl_spi_flash_write_data(unsigned __int8 *src_data, unsigned int flash_address, unsigned int length)\n{\n  unsigned __int8 *src_data_1; // r6\n  unsigned int flash_address_1; // r7\n  int v6; // r5\n  int v7; // r8\n  int v8; // r9\n  bool v9; // zf\n  unsigned int flash_address_2; // r7\n  unsigned __int8 *v11; // r6\n  __int16 length_1; // r4\n  int v13; // r8\n\n  src_data_1 = src_data;\n  flash_address_1 = flash_address;\n  if ( src_data && length )\n  {\n    v6 = (unsigned __int8)-(char)flash_address;\n    v7 = (unsigned __int8)((unsigned __int16)(length + ((unsigned int)((int)length >> 31) >> 24)) >> 8);\n    v8 = (unsigned __int8)((int)length % 256);\n    if ( (_BYTE)flash_address )\n    {\n      if ( !((unsigned __int16)(length + ((unsigned int)((int)length >> 31) >> 24)) >> 8) )\n      {\n        if ( v8 > v6 )\n        {\n          spi_flash_write_command(src_data, flash_address, (unsigned __int8)-(char)flash_address);\n          return spi_flash_write_command(&src_data_1[v6], flash_address_1 + v6, (unsigned __int8)(v8 + flash_address_1));\n        }\n        return spi_flash_write_command(src_data, flash_address, length);\n      }\n      spi_flash_write_command(src_data, flash_address, (unsigned __int8)-(char)flash_address);\n      flash_address_2 = flash_address_1 + v6;\n      v11 = &src_data_1[v6];\n      length_1 = length - v6;\n      v13 = HIBYTE(length_1);\n      while ( 1 )\n      {\n        v9 = v13 == 0;\n        v13 = (unsigned __int8)(v13 - 1);\n        if ( v9 )\n          break;\n        spi_flash_write_command(v11, flash_address_2, 0x100u);\n        flash_address_2 += 256;\n        v11 += 256;\n      }\n      return spi_flash_write_command(v11, flash_address_2, (unsigned __int8)length_1);\n    }\n    else\n    {\n      if ( !((unsigned __int16)(length + ((unsigned int)((int)length >> 31) >> 24)) >> 8) )\n        return spi_flash_write_command(src_data, flash_address, length);\n      while ( 1 )\n      {\n        v9 = v7 == 0;\n        v7 = (unsigned __int8)(v7 - 1);\n        if ( v9 )\n          break;\n        spi_flash_write_command(src_data_1, flash_address_1, 0x100u);\n        flash_address_1 += 256;\n        src_data_1 += 256;\n      }\n      return spi_flash_write_command(src_data_1, flash_address_1, (unsigned __int8)((int)length % 256));\n    }\n  }\n  return (int)src_data;\n}\n",
+  "lines": {
+    "total": 69,
+    "start": 1,
+    "end": 69,
+    "more": false
+  }
+}
+
+## write_flash_safely (0x801DBE0)
+{
+  "name": "write_flash_safely",
+  "addr": "0x801DBE0",
+  "proto": "char *__fastcall(char *src_data, unsigned int flash_address, unsigned int i)",
+  "vars": [
+    {
+      "name": "src_data",
+      "type": "char *",
+      "loc": "reg"
+    },
+    {
+      "name": "flash_address",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "i",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "src_data_1",
+      "type": "unsigned __int8 *",
+      "loc": "reg"
+    },
+    {
+      "name": "",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "i_1",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "src_data_2",
+      "type": "unsigned __int8 *",
+      "loc": "reg"
+    },
+    {
+      "name": "v7",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "v8",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "i_2",
+      "type": "signed int",
+      "loc": "reg"
+    },
+    {
+      "name": "j",
+      "type": "signed int",
+      "loc": "reg"
+    },
+    {
+      "name": "k",
+      "type": "signed int",
+      "loc": "reg"
+    },
+    {
+      "name": "v12",
+      "type": "int",
+      "loc": "reg"
+    }
+  ],
+  "code": "char *__fastcall write_flash_safely(char *src_data, unsigned int flash_address, unsigned int i)\n{\n  unsigned __int8 *src_data_1; // r7\n  unsigned int i_1; // r5\n  unsigned __int8 *src_data_2; // r10\n  unsigned int v7; // r9\n  unsigned int v8; // r11\n  signed int i_2; // r4\n  signed int j; // r6\n  signed int k; // r6\n  int v12; // r1\n\n  src_data_1 = (unsigned __int8 *)src_data;\n  i_1 = i;\n  if ( src_data )\n  {\n    if ( i )\n    {\n      src_data = (char *)sram_heap_malloc(4096);\n      src_data_2 = (unsigned __int8 *)src_data;\n      if ( src_data )\n      {\n        v7 = flash_address >> 12;\n        v8 = flash_address & 0xFFF;\n        i_2 = 4096 - v8;\n        if ( (int)i_1 <= (int)(4096 - v8) )\n          i_2 = i_1;\n        while ( 1 )\n        {\n          flash_read_data_block(src_data_2, v7 << 12, 4096);\n          for ( j = 0; j < i_2 && src_data_2[v8 + j] == 255; j = (unsigned __int16)(j + 1) )\n            ;\n          if ( j >= i_2 )\n          {\n            bl_spi_flash_write_data(src_data_1, flash_address, i_2);\n          }\n          else\n          {\n            pwm_set_frequency(v7 << 12);\n            for ( k = 0; k < i_2; k = (unsigned __int16)(k + 1) )\n              src_data_2[k + v8] = src_data_1[k];\n            bl_spi_flash_write_data(src_data_2, v7 << 12, 0x1000u);\n          }\n          if ( i_1 == i_2 )\n            break;\n          ++v7;\n          v8 = 0;\n          src_data_1 += i_2;\n          flash_address += i_2;\n          i_1 = (unsigned __int16)(i_1 - i_2);\n          if ( i_1 <= 0x1000 )\n            i_2 = i_1;\n          else\n            i_2 = 4096;\n        }\n        return (char *)heap_free_block((int)src_data_2, v12);\n      }\n    }\n  }\n  return src_data;\n}\n",
+  "lines": {
+    "total": 62,
+    "start": 1,
+    "end": 62,
+    "more": false
+  }
+}
+
+## write_uint16_to_storage sub_801DB64 (0x801DB64)
+{
+  "name": "sub_801DB64",
+  "addr": "0x801DB64",
+  "proto": "char *__fastcall(unsigned int flash_address, __int16 a2, int a3, int a4)",
+  "vars": [
+    {
+      "name": "flash_address",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "a2",
+      "type": "__int16",
+      "loc": "reg"
+    },
+    {
+      "name": "a4",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "a3",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "",
+      "type": "char *",
+      "loc": "reg"
+    },
+    {
+      "name": "src_data",
+      "type": "char[2]",
+      "loc": "stack"
+    },
+    {
+      "name": "v6",
+      "type": "__int16",
+      "loc": "stack"
+    }
+  ],
+  "code": "char *__fastcall sub_801DB64(unsigned int flash_address, __int16 a2, int a3, int a4)\n{\n  char src_data[2]; // [sp+0h] [bp-4h] BYREF\n  __int16 v6; // [sp+2h] [bp-2h]\n\n  v6 = HIWORD(a4);\n  src_data[0] = HIBYTE(a2);\n  src_data[1] = a2;\n  return write_flash_safely(src_data, flash_address, 2u);\n}\n",
+  "lines": {
+    "total": 11,
+    "start": 1,
+    "end": 11,
+    "more": false
+  }
+}
+
+## Config read/write helpers (0x3FB000/0x3FD000)
+{
+  "name": "sub_801A9A8",
+  "addr": "0x801A9A8",
+  "proto": "int()",
+  "vars": [
+    {
+      "name": "",
+      "type": "int",
+      "loc": "reg"
+    }
+  ],
+  "code": "int sub_801A9A8()\n{\n  flash_read_data_block((unsigned __int8 *)&n3, 0x3FD000u, 208);\n  return flash_read_data_block(&byte_20001E60[16], 0x3FD000u, 208);\n}\n",
+  "lines": {
+    "total": 6,
+    "start": 1,
+    "end": 6,
+    "more": false
+  }
+}
+{
+  "name": "sub_801A9CC",
+  "addr": "0x801A9CC",
+  "proto": "char *()",
+  "vars": [
+    {
+      "name": "",
+      "type": "char *",
+      "loc": "reg"
+    }
+  ],
+  "code": "char *sub_801A9CC()\n{\n  flash_read_data_block((unsigned __int8 *)&n3, 0x3FB000u, 208);\n  return write_flash_safely(&n3, 0x3FD000u, 0xD0u);\n}\n",
+  "lines": {
+    "total": 6,
+    "start": 1,
+    "end": 6,
+    "more": false
+  }
+}
+{
+  "name": "sub_801A9F0",
+  "addr": "0x801A9F0",
+  "proto": "int()",
+  "vars": [
+    {
+      "name": "",
+      "type": "int",
+      "loc": "reg"
+    }
+  ],
+  "code": "int sub_801A9F0()\n{\n  write_flash_safely(&n3, 0x3FD000u, 0xD0u);\n  return flash_read_data_block(&byte_20001E60[16], 0x3FD000u, 208);\n}\n",
+  "lines": {
+    "total": 6,
+    "start": 1,
+    "end": 6,
+    "more": false
+  }
+}
+{
+  "name": "sub_801ABD8",
+  "addr": "0x801ABD8",
+  "proto": "unsigned __int8 *()",
+  "vars": [
+    {
+      "name": "",
+      "type": "unsigned __int8 *",
+      "loc": "reg"
+    },
+    {
+      "name": "buffer",
+      "type": "unsigned __int8[120]",
+      "loc": "stack"
+    },
+    {
+      "name": "n69300",
+      "type": "unsigned int",
+      "loc": "stack"
+    }
+  ],
+  "code": "unsigned __int8 *sub_801ABD8()\n{\n  unsigned __int8 buffer[120]; // [sp+1E0h] [bp-1E4h] BYREF\n  unsigned int n69300; // [sp+258h] [bp-16Ch]\n\n  flash_read_data_block(buffer, 0x3FB000u, 208);\n  if ( n69300 < 0xFE4C || n69300 > 0x11F1C )\n  {\n    n69300 = 69300;\n    return buffer;\n  }\n  else\n  {\n    n69300 = n69300;\n    return buffer;\n  }\n}\n",
+  "lines": {
+    "total": 18,
+    "start": 1,
+    "end": 18,
+    "more": false
+  }
+}
+{
+  "name": "sub_801B0B8",
+  "addr": "0x801B0B8",
+  "proto": "int()",
+  "vars": [
+    {
+      "name": "i",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "buffer",
+      "type": "unsigned __int8[28]",
+      "loc": "stack"
+    },
+    {
+      "name": "n750",
+      "type": "__int16",
+      "loc": "stack"
+    },
+    {
+      "name": "n160",
+      "type": "__int16",
+      "loc": "stack"
+    },
+    {
+      "name": "n260",
+      "type": "__int16",
+      "loc": "stack"
+    },
+    {
+      "name": "n1276",
+      "type": "__int16",
+      "loc": "stack"
+    },
+    {
+      "name": "n6",
+      "type": "char",
+      "loc": "stack"
+    },
+    {
+      "name": "n7200",
+      "type": "__int16",
+      "loc": "stack"
+    },
+    {
+      "name": "n40",
+      "type": "char",
+      "loc": "stack"
+    },
+    {
+      "name": "v10",
+      "type": "char",
+      "loc": "stack"
+    },
+    {
+      "name": "level",
+      "type": "char",
+      "loc": "stack"
+    },
+    {
+      "name": "n10",
+      "type": "char",
+      "loc": "stack"
+    },
+    {
+      "name": "n320",
+      "type": "__int16",
+      "loc": "stack"
+    },
+    {
+      "name": "n48",
+      "type": "char",
+      "loc": "stack"
+    }
+  ],
+  "code": "int sub_801B0B8()\n{\n  unsigned int i; // r4\n  unsigned __int8 buffer[28]; // [sp+1E4h] [bp-1E4h] BYREF\n  __int16 n750; // [sp+200h] [bp-1C8h]\n  __int16 n160; // [sp+212h] [bp-1B6h]\n  __int16 n260; // [sp+214h] [bp-1B4h]\n  __int16 n1276; // [sp+216h] [bp-1B2h]\n  char n6; // [sp+219h] [bp-1AFh]\n  __int16 n7200; // [sp+21Ch] [bp-1ACh]\n  char n40; // [sp+21Eh] [bp-1AAh]\n  char v10; // [sp+249h] [bp-17Fh]\n  char level; // [sp+250h] [bp-178h]\n  char n10; // [sp+251h] [bp-177h]\n  __int16 n320; // [sp+260h] [bp-168h]\n  char n48; // [sp+264h] [bp-164h]\n\n  flash_read_data_block(buffer, 0x3FB000u, 208);\n  for ( i = 0; i < 0xD; i = (unsigned __int8)(i + 1) )\n    byte_20001E60[i] = *((_BYTE *)&dword_8026234[20] + i);\n  n48 = n48;\n  n320 = n320;\n  byte_20001E05 = v10;\n  level = level;\n  n10_0 = n10;\n  n160 = n160;\n  n1276 = n1276;\n  n6_1 = n6;\n  n750 = n750;\n  n7200 = n7200;\n  n40_0 = n40;\n  n260_0 = n260;\n  word_20001E2C = 0;\n  dword_20001E44 = 0;\n  flt_20001E38 = 0.0;\n  dword_20001E3C = 0;\n  word_20001E40 = 0;\n  word_20001D7E = 0;\n  word_20001E48 = 0;\n  word_20001E4A = 0;\n  dword_20001E4C = 0;\n  byte_20001E52 = 1;\n  byte_20001E53 = 1;\n  n2019 = 2019;\n  dword_20001E54 = 0;\n  dword_20001E58 = 0;\n  byte_20001E5E = 1;\n  n2019_0 = 2019;\n  sub_801AA40();\n  return sub_801A9F0();\n}\n",
+  "lines": {
+    "total": 52,
+    "start": 1,
+    "end": 52,
+    "more": false
+  }
+}
+
+## sub_801B0B8 disassembly (stack offsets)
+0x801B0B8: PUSH            {R4,LR}
++0x2: SUB.W           SP, SP, #0x3C8
++0x6: MOVS            R2, #0xD0
++0x8: LDR             R1, =0x3FB000
++0xA: ADD             R0, SP, #0x3C8+var_1E4
++0xC: BL              flash_read_data_block
++0x10: MOVS            R4, #0
++0x12: B               loc_801B0D8
++0x14: LDR             R0, =(dword_8026234+0x50)
++0x16: LDRB            R1, [R0,R4]
++0x18: LDR             R0, =byte_20001E60
++0x1A: STRB            R1, [R0,R4]
++0x1C: ADDS            R0, R4, #1
++0x1E: UXTB            R4, R0
++0x20: CMP             R4, #0xD
++0x22: BCC             loc_801B0CC
++0x24: LDRB.W          R1, [SP,#0x3C8+var_164]
++0x28: LDR             R0, =buffer
++0x2A: STRB.W          R1, [R0,#(n48 - 0x20001BC0)]
++0x2E: LDRH.W          R1, [SP,#0x3C8+var_168]
++0x32: STRH.W          R1, [R0,#(n320 - 0x20001BC0)]
++0x36: LDRB.W          R1, [SP,#0x3C8+var_17F]
++0x3A: STRB.W          R1, [R0,#(byte_20001E05 - 0x20001BC0)]
++0x3E: LDRB.W          R1, [SP,#0x3C8+var_178]
++0x42: STRB.W          R1, [R0,#(level - 0x20001BC0)]
++0x46: LDRB.W          R1, [SP,#0x3C8+var_177]
++0x4A: STRB.W          R1, [R0,#(n10_0 - 0x20001BC0)]
++0x4E: LDRH.W          R1, [SP,#0x3C8+var_1B6]
++0x52: STRH.W          R1, [R0,#(n160 - 0x20001BC0)]
++0x56: LDRH.W          R1, [SP,#0x3C8+var_1B2]
++0x5A: STRH.W          R1, [R0,#(n1276 - 0x20001BC0)]
++0x5E: LDRB.W          R1, [SP,#0x3C8+var_1AF]
++0x62: STRB.W          R1, [R0,#(n6_1 - 0x20001BC0)]
++0x66: LDRH.W          R1, [SP,#0x3C8+var_1C8]
++0x6A: STRH.W          R1, [R0,#(n750 - 0x20001BC0)]
++0x6E: LDRH.W          R1, [SP,#0x3C8+var_1AC]
++0x72: STRH.W          R1, [R0,#(n7200 - 0x20001BC0)]
++0x76: LDRB.W          R1, [SP,#0x3C8+var_1AA]
++0x7A: STRB.W          R1, [R0,#(n40_0 - 0x20001BC0)]
++0x7E: LDRH.W          R1, [SP,#0x3C8+var_1B4]
++0x82: STRH.W          R1, [R0,#(n260_0 - 0x20001BC0)]
++0x86: MOVS            R1, #0
++0x88: STRH.W          R1, [R0,#(word_20001E2C - 0x20001BC0)]
++0x8C: STR.W           R1, [R0,#(dword_20001E44 - 0x20001BC0)]
++0x90: STR.W           R1, [R0,#(flt_20001E38 - 0x20001BC0)]
++0x94: STR.W           R1, [R0,#(dword_20001E3C - 0x20001BC0)]
++0x98: STRH.W          R1, [R0,#(word_20001E40 - 0x20001BC0)]
++0x9C: MOVS            R0, #0
++0x9E: LDR             R1, =buffer
++0xA0: STRH.W          R0, [R1,#(word_20001D7E - 0x20001BC0)]
++0xA4: MOVS            R1, #0
++0xA6: LDR             R0, =buffer
++0xA8: STRH.W          R1, [R0,#(word_20001E48 - 0x20001BC0)]
++0xAC: STRH.W          R1, [R0,#(word_20001E4A - 0x20001BC0)]
++0xB0: STR.W           R1, [R0,#(dword_20001E4C - 0x20001BC0)]
++0xB4: MOVS            R1, #1
++0xB6: STRB.W          R1, [R0,#(byte_20001E52 - 0x20001BC0)]
++0xBA: STRB.W          R1, [R0,#(byte_20001E53 - 0x20001BC0)]
++0xBE: MOVW            R1, #0x7E3
++0xC2: STRH.W          R1, [R0,#(n2019 - 0x20001BC0)]
++0xC6: MOVS            R1, #0
++0xC8: STR.W           R1, [R0,#(dword_20001E54 - 0x20001BC0)]
++0xCC: STR.W           R1, [R0,#(dword_20001E58 - 0x20001BC0)]
++0xD0: MOVS            R1, #1
++0xD2: STRB.W          R1, [R0,#(byte_20001E5E - 0x20001BC0)]
++0xD6: MOVW            R1, #0x7E3
++0xDA: STRH.W          R1, [R0,#(n2019_0 - 0x20001BC0)]
++0xDE: BL              sub_801AA40
++0xE2: MOVS            R0, #1
++0xE4: BL              sub_801A9F0
++0xE8: ADD.W           SP, SP, #0x3C8
++0xEC: POP             {R4,PC}
+
+## sub_801ABD8 disassembly (n69300 offset)
+0x801ABD8: PUSH            {LR}
++0x2: SUB.W           SP, SP, #0x3C4
++0x6: MOVS            R2, #0xD0
++0x8: LDR             R1, =0x3FB000
++0xA: ADD             R0, SP, #0x3C4+var_1E4
++0xC: BL              flash_read_data_block
++0x10: MOVW            R1, #0xFE4C
++0x14: LDR             R0, [SP,#0x3C4+var_16C]
++0x16: CMP             R0, R1
++0x18: BCC             loc_801AC04
++0x1A: LDR             R1, =0x11F1C
++0x1C: LDR             R0, [SP,#0x3C4+var_16C]
++0x1E: CMP             R0, R1
++0x20: BHI             loc_801AC04
++0x22: LDR             R0, =buffer
++0x24: LDR             R1, [SP,#0x3C4+var_16C]
++0x26: STR.W           R1, [R0,#(n69300 - 0x20001BC0)]
++0x2A: B               loc_801AC0C
++0x2C: LDR             R1, =0x10EB4
++0x2E: LDR             R0, =buffer
++0x30: STR.W           R1, [R0,#(n69300 - 0x20001BC0)]
++0x34: ADD.W           SP, SP, #0x3C4
++0x38: POP             {PC}
+
+## Other flash reads (0x380000 area)
+{
+  "name": "sub_801D210",
+  "addr": "0x801D210",
+  "proto": "int()",
+  "vars": [
+    {
+      "name": "i",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "",
+      "type": "int",
+      "loc": "reg"
+    }
+  ],
+  "code": "int sub_801D210()\n{\n  unsigned int i; // r4\n\n  flash_read_data_block(buffer_0, 0x380000u, 15);\n  for ( i = 0; i < 0xF; i = (unsigned __int8)(i + 1) )\n  {\n    if ( *((unsigned __int8 *)&dword_802B24C[339] + i) != buffer_0[i] )\n      return 0;\n  }\n  return 1;\n}\n",
+  "lines": {
+    "total": 13,
+    "start": 1,
+    "end": 13,
+    "more": false
+  }
+}
+{
+  "name": "sub_801D3B0",
+  "addr": "0x801D3B0",
+  "proto": "int __fastcall(unsigned __int8 *buffer)",
+  "vars": [
+    {
+      "name": "buffer",
+      "type": "unsigned __int8 *",
+      "loc": "reg"
+    },
+    {
+      "name": "",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v3",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v4",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v5",
+      "type": "__int16",
+      "loc": "reg"
+    },
+    {
+      "name": "v6",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "v7",
+      "type": "int",
+      "loc": "reg"
+    }
+  ],
+  "code": "int __fastcall sub_801D3B0(unsigned __int8 *buffer)\n{\n  int v3; // r7\n  int v4; // r0\n  __int16 v5; // r4\n  int v6; // r2\n  int v7; // r3\n\n  if ( !buffer )\n    return 0;\n  v3 = sub_801D958(3670031);\n  v4 = sub_801D958(3670033);\n  v5 = v4;\n  if ( v4 < v3 )\n  {\n    flash_read_data_block(buffer, 17 * v4 + 3670035, 17);\n    if ( sub_801D020(buffer, 16) == buffer[16] )\n    {\n      if ( buffer[15] == 1 )\n      {\n        return 1;\n      }\n      else\n      {\n        sub_801DB64(0x380011u, v5 + 1, v6, v7);\n        return 0;\n      }\n    }\n    else\n    {\n      return 0;\n    }\n  }\n  else\n  {\n    sub_801D04C();\n    return 0;\n  }\n}\n",
+  "lines": {
+    "total": 40,
+    "start": 1,
+    "end": 40,
+    "more": false
+  }
+}
+{
+  "name": "sub_801D958",
+  "addr": "0x801D958",
+  "proto": "int __fastcall(unsigned int flash_address, int a2, int a3, int buffer__1)",
+  "vars": [
+    {
+      "name": "flash_address",
+      "type": "unsigned int",
+      "loc": "reg"
+    },
+    {
+      "name": "buffer__1",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "a2",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "a3",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "",
+      "type": "int",
+      "loc": "reg"
+    },
+    {
+      "name": "buffer_",
+      "type": "int",
+      "loc": "stack"
+    }
+  ],
+  "code": "int __fastcall sub_801D958(unsigned int flash_address, int a2, int a3, int buffer__1)\n{\n  int buffer_; // [sp+0h] [bp-4h] BYREF\n\n  buffer_ = buffer__1;\n  flash_read_data_block((unsigned __int8 *)&buffer_, flash_address, 4);\n  return (unsigned __int16)(BYTE1(buffer_) + ((unsigned __int8)buffer_ << 8));\n}\n",
+  "lines": {
+    "total": 9,
+    "start": 1,
+    "end": 9,
+    "more": false
+  }
+}

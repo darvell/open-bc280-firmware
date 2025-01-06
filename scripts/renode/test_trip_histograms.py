@@ -5,8 +5,7 @@ Validates:
 - time-in-assist (profile buckets) and gear time histograms
 - power distribution histogram (fixed bins)
 
-Requires UART1 PTY exposed via BC280_UART1_PTY and Renode trace output in
-`uart1_tx.log` (standard open-firmware image).
+Requires RENODE_TEST build and UART1 PTY exposed via BC280_UART1_PTY.
 """
 
 import os
@@ -18,7 +17,7 @@ from uart_client import UARTClient, ProtocolError
 
 PORT = os.environ.get("BC280_UART1_PTY", "/tmp/uart1")
 OUTDIR = os.environ.get("BC280_RENODE_OUTDIR") or os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "out", "renode")
+    os.path.join(os.path.dirname(__file__), "..", "..", "open-firmware", "renode", "output")
 )
 UART_LOG = os.path.join(OUTDIR, "uart1_tx.log")
 
@@ -192,7 +191,7 @@ def main() -> int:
         time.sleep(0.2)
 
         set_state_ms = parse_set_state_times(UART_LOG)
-        expect(set_state_ms, "no set_state traces found (build the Renode test image)")
+        expect(set_state_ms, "no set_state traces found (RENODE_TEST build required)")
         hist = parse_hist_line(UART_LOG)
         expect(hist, "no hist trace found")
 

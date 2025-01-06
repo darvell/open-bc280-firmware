@@ -2,7 +2,7 @@
 """Renode BLE compatibility encoder test (CSC/CPS/BAS).
 
 This script expects Renode running headless with BC280_UART1_PTY set,
-and firmware that exposes the BLE compat encoder payload debug commands.
+and a build compiled with BLE_COMPAT=1 and RENODE_TEST=1.
 """
 
 import os

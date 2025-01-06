@@ -37,9 +37,9 @@ from bootloader_ota import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-RENODE_VENDOR_RESC = REPO_ROOT / "renode" / "bc280_vendor_fast.resc"
-RENODE_OPEN_RESC = REPO_ROOT / "renode" / "bc280_open_firmware_fast.resc"
-SPI_FLASH_DEFAULT = REPO_ROOT / "renode" / "flash" / "spi_flash_v2_2_8.bin"
+RENODE_VENDOR_RESC = REPO_ROOT / "open-firmware" / "renode" / "bc280_vendor_fast.resc"
+RENODE_OPEN_RESC = REPO_ROOT / "open-firmware" / "renode" / "bc280_open_firmware_fast.resc"
+SPI_FLASH_DEFAULT = REPO_ROOT / "open-firmware" / "renode" / "flash" / "spi_flash_v2_2_8.bin"
 
 if "BC280_SPI_FLASH_BIN" not in os.environ and SPI_FLASH_DEFAULT.exists():
     os.environ["BC280_SPI_FLASH_BIN"] = str(SPI_FLASH_DEFAULT.resolve())
@@ -56,7 +56,7 @@ COMBINED_FW_BIN = env_path(
     "BC280_COMBINED_FW_BIN",
     REPO_ROOT / "firmware" / "BC280_Combined_Firmware_3.3.6_4.2.5.bin",
 )
-OPEN_FW_BIN = env_path("BC280_OPEN_FW_BIN", REPO_ROOT / "build" / "open_firmware.bin")
+OPEN_FW_BIN = env_path("BC280_OPEN_FW_BIN", REPO_ROOT / "open-firmware" / "build" / "open_firmware.bin")
 # Bootloader BLE UART is UART1 on real hardware; override only for experiments.
 def env_float(name: str, default: float) -> float:
     raw = os.environ.get(name)
@@ -1998,7 +1998,7 @@ threading.Thread(target=loop, daemon=True).start()
 
 
 def write_vendor_resc(path: Path, outdir: Path) -> None:
-    renode_dir = REPO_ROOT / "renode"
+    renode_dir = REPO_ROOT / "open-firmware" / "renode"
     platform = renode_dir / "bc280_platform_fast.repl"
     fw = REPO_ROOT / "firmware" / "BC280_Combined_Firmware_3.3.6_4.2.5.bin"
     text = f"""# Auto-generated for test_full_update_flow.py
@@ -2031,24 +2031,19 @@ except Exception:
 
 def run() -> int:
     global DEADLINE
-    # Build open firmware (unless skipped).
+    # Build open firmware with test hooks + bootflag-on-boot (unless skipped).
     if os.environ.get("BC280_SKIP_BUILD") != "1":
-        build_script = REPO_ROOT / "scripts" / "build_open_firmware.sh"
-        if build_script.exists():
-            subprocess.check_call([str(build_script)], cwd=REPO_ROOT)
-        else:
-            open_fw_dir = REPO_ROOT
-            try:
-                subprocess.check_call(
-                    ["meson", "setup", "build", "--cross-file", "cross/arm-none-eabi-clang.txt"],
-                    cwd=open_fw_dir,
-                )
-            except subprocess.CalledProcessError:
-                subprocess.check_call(
-                    ["meson", "setup", "--reconfigure", "build", "--cross-file", "cross/arm-none-eabi-clang.txt"],
-                    cwd=open_fw_dir,
-                )
-            subprocess.check_call(["ninja", "-C", "build"], cwd=open_fw_dir)
+        build_cmd = [
+            "make",
+            "-C",
+            str(REPO_ROOT / "open-firmware"),
+            "-s",
+            "-B",
+            "RENODE_TEST=1",
+            "BOOTLOADER_FLAG_ON_BOOT=1",
+            "RENODE_LCD_DEMO=0",
+        ]
+        subprocess.check_call(build_cmd)
     if not OPEN_FW_BIN.exists():
         print("open_firmware.bin not found after build", file=sys.stderr)
         return 1

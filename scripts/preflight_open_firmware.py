@@ -19,7 +19,7 @@ def parse_int(val: str) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Preflight check for open-firmware image")
-    ap.add_argument("--image", default="build/open_firmware.bin", help="Path to .bin")
+    ap.add_argument("--image", default="open-firmware/build/open_firmware.bin", help="Path to .bin")
     ap.add_argument("--base", default="0x08010000", help="Load address for app image")
     ap.add_argument("--max-size", default="0x30000", help="Max bytes for app slot")
     args = ap.parse_args()

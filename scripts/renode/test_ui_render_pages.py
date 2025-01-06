@@ -10,7 +10,7 @@ from uart_client import ProtocolError, UARTClient
 
 PORT = os.environ.get("BC280_UART1_PTY", "/tmp/uart1")
 OUTDIR = os.environ.get("BC280_RENODE_OUTDIR") or os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "out", "renode")
+    os.path.join(os.path.dirname(__file__), "..", "..", "open-firmware", "renode", "output")
 )
 UART_LOG = os.path.join(OUTDIR, "uart1_tx.log")
 
@@ -158,7 +158,7 @@ def main() -> int:
         time.sleep(0.2)
 
         registry, events = load_events(UART_LOG, 0)
-        expect(registry is not None, "no ui-reg trace found (check Renode trace output)")
+        expect(registry is not None, "no ui-reg trace found (RENODE_TEST build required)")
         layout, names = registry
         expect(len(layout) == len(names) and len(layout) > 0, "ui-reg layout/names missing")
 

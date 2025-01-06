@@ -3,7 +3,7 @@
 
 Assumptions:
 - Renode exposes UART1 via BC280_UART1_PTY (e.g. /tmp/uart1).
-- Firmware built from this repo (Meson/Ninja; see scripts/build_open_firmware.sh).
+- Firmware built with RENODE_TEST=1 to keep traces deterministic.
 
 Test flow:
 1) Wait for PTY, ping.

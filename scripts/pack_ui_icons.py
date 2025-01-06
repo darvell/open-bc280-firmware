@@ -449,8 +449,8 @@ def emit_c_array(f, name: str, data: bytes) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default="ui/ui_sprites", help="Output base path (no extension)")
-    ap.add_argument("--preview-dir", default="out/ui_icon_previews", help="Write PNG previews here")
+    ap.add_argument("--out", default="open-firmware/ui_sprites", help="Output base path (no extension)")
+    ap.add_argument("--preview-dir", default="open-firmware/docs/icons", help="Write PNG previews here")
     ap.add_argument("--size", type=int, default=20, help="Icon size (px)")
     ap.add_argument("--scale", type=int, default=8, help="Oversample factor for AA")
     args = ap.parse_args()

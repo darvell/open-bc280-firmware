@@ -1,0 +1,17 @@
+[binaries]
+c = 'clang'
+ar = 'arm-none-eabi-ar'
+strip = 'arm-none-eabi-strip'
+objcopy = 'arm-none-eabi-objcopy'
+ld = 'arm-none-eabi-ld'
+size = 'arm-none-eabi-size'
+
+[built-in options]
+c_args = ['--target=arm-none-eabi', '-mcpu=cortex-m4', '-mthumb', '-mfpu=fpv4-sp-d16', '-mfloat-abi=hard']
+c_link_args = ['--target=arm-none-eabi']
+
+[host_machine]
+system = 'none'
+cpu_family = 'arm'
+cpu = 'cortex-m4'
+endian = 'little'

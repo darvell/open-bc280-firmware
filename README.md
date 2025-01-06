@@ -1,165 +1,32 @@
 # open-bc280-firmware
 
-> Safety / status: Experimental reverse-engineering + firmware project.
->
-> Do **not** flash this onto a bike you ride, and do **not** rely on it for safety-critical behavior.
-> Prefer host simulation and Renode until you have a controlled recovery path.
+Working area for open-source BC280 display firmware (Shengyi DWG22 custom variant/Aventon focus).
 
-Attempted open-source firmware for the **BC280** e-bike display used on bikes with **Shengyi DWG22**
-motor controllers (Aventon-focused, but intended to be adaptable to other BC280-class variants).
+- `open-firmware/` — our app source + build outputs; includes Renode scripts in `open-firmware/renode/`.
+- `firmware/` — reference binaries: combined OEM images, OEM app/boot slices, our example builds (open_firmware.bin, hello_app bin, sample OEM app/boot pairs).
+- `scripts/` — helper tooling (build + BLE OTA uploader from the parent project).
+- Target MCU: **AT32F403AVCT7** (Cortex‑M4F, 256KB flash; 64KB bootloader + 192KB app region).
 
-This project is not affiliated with Aventon, Shengyi, or any OEM vendor.
+## Quick start (Codex-ready)
+1) cd `/Users/pp/code/open-bc280-firmware`
+2) Fast host tests (no Renode): `make -C open-firmware test-host`
+3) Full host simulator (fake bike + UART/BLE): `make -C open-firmware sim-host`
+4) Build: `./scripts/build_open_firmware.sh` (output in `open-firmware/build/open_firmware.bin`).
+5) Run in Renode (integration check only):
+   ```bash
+   renode/Renode.app/Contents/MacOS/renode --disable-xwt \
+     -e "include @open-firmware/renode/bc280_open_firmware.resc"
+   ```
+   The script loads the OEM combined image from `firmware/BC280_Combined_Firmware_3.3.6_4.2.5.bin`, overlays `open_firmware.bin`, clears BOOTLOADER_MODE, sets PC/SP, and opens a UART1 analyzer.
+6) OTA over BLE from host: `python3 scripts/ble_push_open_firmware.py <MAC>` (writes open_firmware.bin, handles bootloader hop, blocks/finalizes).
+7) Debug protocol (UART1/2/4 auto-sensed): see `open-firmware/README.md` for commands; streaming telemetry via 0x0D/0x81.
 
-## What this is
+## Host simulation
+We provide a host-side peripheral shim + fake bike simulator so most tests can
+run without Renode. Track work in beads: `open-bc280-firmware-kbu`.
+Bus protocol extraction from OEM firmware: `open-bc280-firmware-h1p`.
 
-The BC280 ecosystem typically ships as a vendor bootloader + application image. This repo contains:
+## Motor protocol snapshot
+See the detailed Shengyi DWG22 config/status map in this README for 0xC0 fields (battery, speed limit, wheel size presets, assist profile, current/voltage thresholds, misc params). The OEM combined images are here for diffing/reference only—open-firmware never links against them.
 
-- An open application firmware source tree (this repo) designed to be accepted by the **stock OEM bootloader**
-  at the standard application base address.
-- Host-side tests and a deterministic “fake bike” simulator (UART/BLE/sensor shims) to iterate quickly
-  without touching hardware.
-- A Renode harness used as an integration backstop for MMIO-level behavior.
-- OEM binary artifacts under `firmware/` kept for diffing/regression reference only.
-
-The open firmware must remain self-contained and must **never** replace or take over the OEM bootloader.
-All boot and validation behavior should continue to pass through the vendor bootloader’s jump/validate path.
-
-## Hardware target
-
-- Display: BC280-class e-bike display (various OEM bike models; Aventon is the primary reference)
-- Motor controller: Shengyi **DWG22** (custom variant) using a display↔controller UART protocol
-- MCU: **AT32F403AVCT7** (Cortex‑M4F)
-  - Internal flash: 256KB total
-  - Typical layout:
-    - Bootloader: `0x0800_0000–0x0800_FFFF` (first 64KB)
-    - Application: `0x0801_0000–0x0803_FFFF` (192KB)
-  - SRAM: 96KB default (some configs extend usable SRAM; this project budgets for 96KB by default)
-
-## How it works (high-level)
-
-At a system level, the display firmware sits between two buses:
-
-- **UART1** ↔ BLE module passthrough (used for debugging/telemetry and OTA control flows)
-- **UART2** ↔ motor controller (Shengyi DWG22 display↔controller protocol)
-
-The open firmware implements enough of the display-side application behavior to:
-
-- Boot as an OEM-compatible application image (vector table + reset handler constraints)
-- Speak the motor bus protocol well enough for parity testing and simulation
-- Expose a debug surface for bring-up (UART “peek/poke”, logging, limited flash reads, etc.)
-
-Detailed protocol notes live in `docs/firmware/README.md`.
-
-## Boot / recovery model
-
-This repo is intentionally conservative about boot behavior:
-
-- The OEM bootloader remains the authority for validation and jumping to the application.
-- When a guaranteed return to bootloader is required, the firmware uses the bootloader mode flag:
-  - SPI flash mapped window: `0x0030_0000`
-  - Bootloader mode flag: `0x0030_0000 + 0x3FF080`
-  - Convention: write `0xAA` then reboot/jump via the OEM bootloader.
-
-Safety invariants and boot constraints are documented in:
-
-- `docs/firmware/SAFETY.md`
-- `docs/firmware/REQUIREMENTS.md`
-
-## Repository layout
-
-- `scripts/` — build helpers, preflight checker, BLE OTA uploader, Renode runners
-- `renode/` — Renode platform/harness files (plus an optional local `Renode.app` bundle, ignored by git)
-- `firmware/` — OEM and reference binaries (for diffing/regression only; the open firmware does not link against them)
-- `docs/chipset/` — MCU reference notes / datasheets
-- `docs/firmware/` — safety/requirements/specs and UI screenshots
-- `docs/re/` — reverse-engineering notes (reference-only)
-- `src/`, `platform/`, `drivers/`, `startup/`, `storage/`, `ui/`, `gfx/`, `util/` — firmware source tree (Meson project root)
-
-## Prerequisites
-
-- Python 3 (for helper scripts and Renode automation)
-- Meson + Ninja (host builds and cross builds)
-- For cross-compiling the firmware image: an ARM embedded toolchain as configured by
-  `cross/arm-none-eabi-clang.txt`
-
-## Build & test (recommended path)
-
-This repo is set up to prefer fast host-side validation before any emulation or hardware work.
-
-### Host tests (fast)
-
-```bash
-meson setup build-host || meson setup --reconfigure build-host
-ninja -C build-host test
-```
-
-### Host simulator (fake bike loop)
-
-```bash
-meson setup build-host || meson setup --reconfigure build-host
-ninja -C build-host host_sim
-./build-host/tests/host/host_sim
-```
-
-The simulator can emit deterministic traces (including generated Shengyi frames) when configured via
-environment variables; see `docs/firmware/README.md` for the full set of knobs.
-
-### Cross build (firmware image)
-
-```bash
-./scripts/build_open_firmware.sh
-# output: build/open_firmware.bin
-```
-
-### Image preflight (recommended before flashing)
-
-The OEM bootloader enforces vector-table and range constraints. Run the preflight checker against
-any image before attempting an update:
-
-```bash
-python3 scripts/preflight_open_firmware.py --image build/open_firmware.bin
-```
-
-## Emulation (Renode)
-
-Renode is used as an integration backstop (MMIO correctness, boot flow, UART wiring), not as the
-primary dev loop.
-
-```bash
-./scripts/renode_smoke.sh
-```
-
-There are also end-to-end scripts (OEM → bootloader → open-fw → bootflag → power-cycle) under
-`scripts/renode/`.
-
-## OTA update (BLE)
-
-This repo includes a host-side BLE updater script intended to drive the OEM bootloader’s update path.
-
-```bash
-python3 scripts/ble_push_open_firmware.py <BLE_MAC_ADDRESS>
-```
-
-This is experimental and easy to brick hardware with. Prefer Renode + host simulation until you have
-a controlled recovery path.
-
-## Notes on OEM artifacts
-
-The `firmware/` directory contains OEM binaries that were used for reverse engineering and regression
-reference. The open firmware is not linked against OEM images or blobs; OEM binaries are treated as
-reference inputs only.
-
-## Contributing
-
-If you want to contribute, start with the safety and boot constraints:
-
-- `docs/firmware/SAFETY.md`
-- `docs/firmware/REQUIREMENTS.md`
-
-Then use the host tests/simulator as the default feedback loop. Avoid changes that would bypass,
-replace, or otherwise undermine the OEM bootloader path.
-
-## License
-
-No explicit top-level license file is provided in this repo. Do not assume reuse rights until a license
-is added.
+For agent expectations and IDA notes, see `AGENTS.md`.
