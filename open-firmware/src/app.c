@@ -186,16 +186,6 @@ void app_update_ui(void)
     g_ui_model.tune_cap_current_dA = g_config_active.cap_current_dA;
     g_ui_model.tune_ramp_wps = g_config_active.soft_start_ramp_wps;
     g_ui_model.tune_boost_s = (uint8_t)((g_config_active.boost_budget_ms + 500u) / 1000u);
-    /* Track cruise mode changes for UI flash effect */
-    {
-        static uint8_t prev_cruise_mode = 0u;
-        uint8_t new_mode = (uint8_t)g_cruise.mode;
-        if (new_mode != prev_cruise_mode)
-        {
-            g_ui_model.cruise_change_ms = g_ms;
-            prev_cruise_mode = new_mode;
-        }
-    }
     g_ui_model.cruise_mode = (uint8_t)g_cruise.mode;
     g_ui_model.cruise_set_dmph = g_cruise.set_speed_dmph;
     g_ui_model.cruise_set_power_w = g_cruise.set_power_w;

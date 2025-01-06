@@ -35,15 +35,7 @@ typedef enum {
     UI_PAGE_TUNE = 15,
     UI_PAGE_AMBIENT = 16,
     UI_PAGE_ABOUT = 17,
-    UI_PAGE_POWER = 18,  /* Consolidated Battery+Thermal screen */
 } ui_page_t;
-
-/* Screen visibility categories */
-#define UI_VIS_USER   0x01u  /* User-facing screens */
-#define UI_VIS_DEV    0x02u  /* Developer/engineer screens */
-
-/* Check if a page should be visible */
-uint8_t ui_page_visible(uint8_t page, uint8_t dev_screens_enabled);
 
 
 #define UI_PALETTE_COLORS 8u
@@ -169,7 +161,6 @@ typedef struct {
     uint8_t cruise_mode;
     uint16_t cruise_set_dmph;
     uint16_t cruise_set_power_w;
-    uint32_t cruise_change_ms;  /* timestamp of last cruise mode change (for flash effect) */
     uint8_t alert_entries;
     uint8_t alert_type[3];
     uint8_t alert_flags[3];

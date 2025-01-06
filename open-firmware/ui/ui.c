@@ -6,7 +6,7 @@
 #include "src/core/trace_format.h"
 #include "util/crc32.h"
 #include "ui_display.h"
-#include "ui_font_stroke.h"
+#include "ui_font_bitmap.h"
 #include "ui_color.h"
 #ifdef UI_PIXEL_SIM
 #include "ui_pixel_sink.h"
@@ -317,6 +317,24 @@ void ui_draw_text(ui_render_ctx_t *ctx, uint16_t x, uint16_t y, const char *text
     ui_pixel_sink_draw_text(x, y, text, fg, bg);
 #elif UI_LCD_HW
     ui_lcd_draw_text_stroke(x, y, text, fg, bg);
+#endif
+}
+
+void ui_draw_text_sized(ui_render_ctx_t *ctx, uint16_t x, uint16_t y, const char *text, ui_font_size_t size, uint16_t fg, uint16_t bg)
+{
+    draw_op(ctx, 4u);
+    hash_u32(ctx, x);
+    hash_u32(ctx, y);
+    hash_u32(ctx, (uint32_t)size);
+    hash_u32(ctx, fg);
+    hash_u32(ctx, bg);
+    hash_bytes(ctx, text);
+    if (!ctx->draw_enabled)
+        return;
+#ifdef UI_PIXEL_SIM
+    ui_pixel_sink_draw_text_sized(x, y, text, size, fg, bg);
+#elif UI_LCD_HW
+    ui_lcd_draw_text_sized(x, y, text, size, fg, bg);
 #endif
 }
 
@@ -979,7 +997,7 @@ static void draw_outline_panel(ui_render_ctx_t *ctx, ui_rect_t r, uint16_t borde
 
 static uint16_t txt_w_est(const char *s)
 {
-    return ui_font_stroke_text_width_px(s);
+    return ui_font_bitmap_text_width(s);
 }
 
 static uint16_t rgb565_lerp(uint16_t a, uint16_t b, uint8_t t)
@@ -1177,7 +1195,7 @@ static void dash_v2_render_speed_inner(ui_render_ctx_t *ctx, const ui_model_t *m
 
     /* Unit label: above digits, centered (never overlaps). */
     const char *unit = m->units ? "KMH" : "MPH";
-    ui_draw_text(ctx, (uint16_t)(speed.x + speed.w / 2u - 14u), (uint16_t)(speed.y + 10u), unit, muted, card_fill);
+    ui_draw_text_sized(ctx, (uint16_t)(speed.x + speed.w / 2u - 14u), (uint16_t)(speed.y + 10u), unit, UI_FONT_SMALL, muted, card_fill);
 
     /* Big speed digits: centered. */
     uint16_t spd = (uint16_t)(m->speed_dmph / 10u);
@@ -1224,12 +1242,12 @@ static void dash_v2_render_speed_inner(ui_render_ctx_t *ctx, const ui_model_t *m
     ui_draw_text(ctx, (uint16_t)(speed.x + 18u), info_y, "PWR", muted, card_fill);
     fmt_u32(buf, sizeof(buf), (uint32_t)m->power_w);
     ui_draw_text(ctx, (uint16_t)(speed.x + 48u), info_y, buf, text, card_fill);
-    ui_draw_text(ctx, (uint16_t)(speed.x + 78u), info_y, "W", muted, card_fill);
+    ui_draw_text_sized(ctx, (uint16_t)(speed.x + 78u), info_y, "W", UI_FONT_SMALL, muted, card_fill);
 
     ui_draw_text(ctx, (uint16_t)(speed.x + speed.w / 2u + 6u), info_y, "RNG", muted, card_fill);
     fmt_d10(buf, sizeof(buf), (int32_t)m->range_est_d10);
     ui_draw_text(ctx, (uint16_t)(speed.x + speed.w / 2u + 38u), info_y, buf, text, card_fill);
-    ui_draw_text(ctx, (uint16_t)(speed.x + speed.w / 2u + 74u), info_y, m->units ? "KM" : "MI", muted, card_fill);
+    ui_draw_text_sized(ctx, (uint16_t)(speed.x + speed.w / 2u + 74u), info_y, m->units ? "KM" : "MI", UI_FONT_SMALL, muted, card_fill);
 
     /* Range confidence ticks (0..5). */
     uint16_t conf = m->range_confidence;
@@ -1297,7 +1315,7 @@ static void dash_v2_render_tray_inner(ui_render_ctx_t *ctx, const ui_model_t *m,
 
     /* Column 3: WH/MI (efficiency) */
     uint16_t col3_x = (uint16_t)(tray.x + 3u * col_w + 4u);
-    ui_draw_text(ctx, col3_x, label_y, m->units ? "WH/K" : "WH/M", muted, card_fill);
+    ui_draw_text_sized(ctx, col3_x, label_y, m->units ? "WH/K" : "WH/M", UI_FONT_SMALL, muted, card_fill);
     fmt_d10(buf, sizeof(buf), (int32_t)wh_d10);
     ui_draw_text(ctx, col3_x, value_y, buf, text, card_fill);
 }
@@ -2155,7 +2173,7 @@ static void render_battery_screen(ui_render_ctx_t *ctx, const ui_model_t *m,
     {
         ui_draw_big_digit(ctx, dx, dy0, (uint8_t)(soc % 10u), scale, soc_color);
     }
-    ui_draw_text(ctx, (uint16_t)(dx0 + total + 4u), (uint16_t)(dy0 + 22u), "%", muted, card_fill);
+    ui_draw_text_sized(ctx, (uint16_t)(dx0 + total + 4u), (uint16_t)(dy0 + 22u), "%", UI_FONT_SMALL, muted, card_fill);
 
     /* Right-side stats */
     ui_rect_t stat = {(uint16_t)(hero.x + 120u), (uint16_t)(hero.y + 18u), (uint16_t)(hero.w - 132u), 92u};
@@ -2174,7 +2192,7 @@ static void render_battery_screen(ui_render_ctx_t *ctx, const ui_model_t *m,
         char buf[16];
         fmt_d10(buf, sizeof(buf), (int32_t)m->range_est_d10);
         ui_draw_text(ctx, (uint16_t)(bottom.x + 12u), (uint16_t)(bottom.y + 30u), buf, text, card_fill);
-        ui_draw_text(ctx, (uint16_t)(bottom.x + 72u), (uint16_t)(bottom.y + 30u), m->units ? "KM" : "MI", muted, card_fill);
+        ui_draw_text_sized(ctx, (uint16_t)(bottom.x + 72u), (uint16_t)(bottom.y + 30u), m->units ? "KM" : "MI", UI_FONT_SMALL, muted, card_fill);
     }
     ui_draw_value(ctx, (uint16_t)(bottom.x + bottom.w - 96u), (uint16_t)(bottom.y + 10u), "SAG dV", m->sag_margin_dV, muted, card_fill);
     /* Confidence bar (5 ticks) */
@@ -2259,7 +2277,7 @@ static void render_thermal(ui_render_ctx_t *ctx, const ui_model_t *m,
         uint16_t tw = txt_w_est(buf);
         uint16_t tx = (tw < 96u) ? (uint16_t)((int)cx - (int)tw / 2) : hero.x;
         ui_draw_text(ctx, tx, (uint16_t)(hero.y + 60u), buf, tcol, card_fill);
-        ui_draw_text(ctx, (uint16_t)(tx + tw + 4u), (uint16_t)(hero.y + 60u), "C", muted, card_fill);
+        ui_draw_text_sized(ctx, (uint16_t)(tx + tw + 4u), (uint16_t)(hero.y + 60u), "C", UI_FONT_SMALL, muted, card_fill);
     }
 
     /* Right-side details */
@@ -2765,7 +2783,7 @@ static void render_header(ui_render_ctx_t *ctx, const char *title)
     uint16_t panel = ui_color(ctx, UI_COLOR_PANEL);
     uint16_t text = ui_color(ctx, UI_COLOR_TEXT);
     ui_draw_round_rect(ctx, bar, panel, 6u);
-    ui_draw_text(ctx, (uint16_t)(bar.x + 8u), (uint16_t)(bar.y + 6u), title, text, panel);
+    ui_draw_text_sized(ctx, (uint16_t)(bar.x + 8u), (uint16_t)(bar.y + 4u), title, UI_FONT_HEADER, text, panel);
 }
 
 static void render_header_icon(ui_render_ctx_t *ctx, const char *title, ui_icon_id_t icon)
@@ -2788,7 +2806,7 @@ static void render_header_icon(ui_render_ctx_t *ctx, const char *title, ui_icon_
 #else
     (void)icon;
 #endif
-    ui_draw_text(ctx, title_x, (uint16_t)(bar.y + 6u), title, text, panel);
+    ui_draw_text_sized(ctx, title_x, (uint16_t)(bar.y + 4u), title, UI_FONT_HEADER, text, panel);
 }
 
 static void render_table_header(ui_render_ctx_t *ctx, uint16_t y, const char *left, const char *right)

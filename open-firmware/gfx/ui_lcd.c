@@ -2,7 +2,7 @@
 
 #include "ui_display.h"
 #include "ui_draw_common.h"
-#include "ui_font_stroke.h"
+#include "ui_font_bitmap.h"
 
 #define LCD_CMD_ADDR  0x60000000u
 #define LCD_DATA_ADDR 0x60020000u
@@ -212,7 +212,12 @@ static void stroke_rect(int x, int y, int w, int h, uint16_t color, void *user)
 
 void ui_lcd_draw_text_stroke(uint16_t x, uint16_t y, const char *text, uint16_t fg, uint16_t bg)
 {
-    ui_font_stroke_draw_text(stroke_plot, stroke_rect, NULL, (int)x, (int)y, text, fg, bg);
+    ui_font_bitmap_draw_text(stroke_plot, stroke_rect, NULL, (int)x, (int)y, text, fg, bg);
+}
+
+void ui_lcd_draw_text_sized(uint16_t x, uint16_t y, const char *text, ui_font_size_t size, uint16_t fg, uint16_t bg)
+{
+    ui_font_draw_text(stroke_plot, stroke_rect, NULL, (int)x, (int)y, text, size, fg, bg);
 }
 
 void ui_lcd_draw_value_stroke(uint16_t x, uint16_t y, const char *label, int32_t value, uint16_t fg, uint16_t bg)

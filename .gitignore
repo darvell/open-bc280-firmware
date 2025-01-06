@@ -20,7 +20,6 @@ open-firmware/tests/host/host_tests
 open-firmware/tests/host/host_tests_ui
 open-firmware/tests/host/test_tongsheng_bus
 open-firmware/tests/host/lcd_out/
-tests/host/lcd_out/
 open-firmware/tests/host/lcd_shots/
 open-firmware/tests/host/lcd_shots_240x320/
 open-firmware/tests/host/lcd_shots_current/

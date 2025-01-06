@@ -6,7 +6,7 @@
 
 #include "ui_display.h"
 #include "ui_draw_common.h"
-#include "ui_font_stroke.h"
+#include "ui_font_bitmap.h"
 
 static uint16_t g_fb[DISP_W * DISP_H];
 static uint8_t g_frame_pending;
@@ -213,7 +213,13 @@ void ui_pixel_sink_draw_round_rect_dither(uint16_t x, uint16_t y, uint16_t w, ui
 
 void ui_pixel_sink_draw_text(uint16_t x, uint16_t y, const char *text, uint16_t fg, uint16_t bg)
 {
-    ui_font_stroke_draw_text(stroke_plot, stroke_rect, NULL, (int)x, (int)y, text, fg, bg);
+    ui_font_bitmap_draw_text(stroke_plot, stroke_rect, NULL, (int)x, (int)y, text, fg, bg);
+    g_frame_pending = 1;
+}
+
+void ui_pixel_sink_draw_text_sized(uint16_t x, uint16_t y, const char *text, ui_font_size_t size, uint16_t fg, uint16_t bg)
+{
+    ui_font_draw_text(stroke_plot, stroke_rect, NULL, (int)x, (int)y, text, size, fg, bg);
     g_frame_pending = 1;
 }
 

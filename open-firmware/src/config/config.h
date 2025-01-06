@@ -6,10 +6,6 @@
 /* Legal mode + PIN configuration */
 #define MODE_STREET  0u
 #define MODE_PRIVATE 1u
-
-/* Config flags (stored in config_t.flags) */
-#define CONFIG_FLAG_WALK_ENABLED    0x01u  /* Walk mode capability */
-#define CONFIG_FLAG_DEV_SCREENS     0x02u  /* Show developer screens (Bus, Capture, Engineer) */
 #define MODE_PIN_DEFAULT      1234u
 #define MODE_PIN_MAX          9999u
 #define MODE_PIN_RATE_LIMIT_MS 2000u

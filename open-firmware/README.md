@@ -257,15 +257,24 @@ open open-firmware/tests/host/lcd_out/host_lcd_latest.ppm
 Set `UI_LCD_OUTDIR` (or `BC280_LCD_OUTDIR`) to change the output directory.
 
 ### UI screenshots (PNG)
-For quick UI/UX review, generate PNG screenshots via the helper script:
+Generate PNG screenshots for all UI pages via the batch script:
 ```bash
-python3 scripts/ui_screenshot.py --page 0 --name dashboard --scale 4
-python3 scripts/ui_screenshot.py --all --steps 1 --scale 4
+./scripts/gen_screenshots.sh
 ```
-Outputs go to `open-firmware/tests/host/lcd_shots/` by default (ignored by git).
+Outputs go to `docs/examples/` (tracked in git) with 2× scaled PNGs for each page.
+The script builds `host_sim`, forces each page in sequence, and converts PPM → PNG.
+
+**UI Gallery** — see [docs/examples/](docs/examples/) for current screenshots:
+- `dashboard_screen.png` — main riding view (speed hero, stats tray, top bar)
+- `trip_screen.png` — trip summary (distance, time, avg speed)
+- `settings_screen.png` — settings menu
+- `battery_screen.png` — battery detail (voltage, current, SoC)
+- `thermal_screen.png` — thermal monitoring
+- `graphs_screen.png` — strip chart graphs
+- (and more: profiles, cruise, diagnostics, bus, capture, tune, etc.)
 
 ### UI assets
-The UI uses the procedural stroke font and vector-style primitives only (no bitmap atlases or sprite packs).
+The UI uses a compact 1-bit packed bitmap font (~814 bytes for ASCII 32-126) and vector-style primitives (no sprite packs or full framebuffer).
 
 ### Host sim button inputs
 By default the host sim pulses the page buttons at steps 12/22 to flip pages.
