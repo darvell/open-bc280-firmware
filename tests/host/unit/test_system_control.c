@@ -143,32 +143,23 @@ TEST(key_seq_boot_delayed_raise)
     ASSERT_TRUE(g_key_set_calls == 2u);
 }
 
-TEST(key_seq_fault_pulse_low_then_high)
+TEST(key_seq_no_fault_pulse)
 {
     reset_state();
     system_control_key_sequencer_init(0u);
     system_control_key_sequencer_tick(10u, 0u, 0u);
     ASSERT_TRUE(g_key_level == 1u);
 
-    /* Rising fault edge pulses low. */
-    system_control_key_sequencer_tick(50u, 1u, 0u);
-    ASSERT_TRUE(g_key_level == 0u);
-
-    /* Hold low until delay expires. */
-    system_control_key_sequencer_tick(55u, 1u, 0u);
-    ASSERT_TRUE(g_key_level == 0u);
-    system_control_key_sequencer_tick(60u, 1u, 0u);
-    ASSERT_TRUE(g_key_level == 1u);
-
-    /* Fault still asserted: no retrigger until it clears. */
+    /* Fault changes must not deassert PB1 in runtime. */
     uint8_t calls = g_key_set_calls;
-    system_control_key_sequencer_tick(70u, 1u, 0u);
+    system_control_key_sequencer_tick(50u, 1u, 0u);
+    ASSERT_TRUE(g_key_level == 1u);
     ASSERT_TRUE(g_key_set_calls == calls);
 
-    /* Clear then assert again: retrigger pulse. */
+    system_control_key_sequencer_tick(70u, 1u, 0u);
     system_control_key_sequencer_tick(80u, 0u, 0u);
-    system_control_key_sequencer_tick(90u, 1u, 0u);
-    ASSERT_TRUE(g_key_level == 0u);
+    ASSERT_TRUE(g_key_level == 1u);
+    ASSERT_TRUE(g_key_set_calls == calls);
 }
 
 TEST(key_seq_ignores_transitions_while_rebooting)
@@ -199,7 +190,7 @@ int main(void)
     RUN_TEST(recovery_overrides_app_reboot_request);
     RUN_TEST(recovery_accepts_combo_with_extra_buttons);
     RUN_TEST(key_seq_boot_delayed_raise);
-    RUN_TEST(key_seq_fault_pulse_low_then_high);
+    RUN_TEST(key_seq_no_fault_pulse);
     RUN_TEST(key_seq_ignores_transitions_while_rebooting);
 
     printf("\n");
