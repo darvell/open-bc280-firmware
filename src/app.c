@@ -107,6 +107,7 @@ void app_process_time(void)
 {
     platform_time_poll_1ms();
     watchdog_feed_runtime();
+    system_control_key_sequencer_tick(g_ms, 0u, g_request_soft_reboot);
 
     if (g_request_soft_reboot == REBOOT_REQUEST_BOOTLOADER) {
         reboot_to_bootloader();
@@ -487,10 +488,6 @@ void app_apply_inputs(void)
 
 void app_process_periodic(void)
 {
-    system_control_key_sequencer_tick(g_ms,
-                                      bool_to_u8(motor_cmd_link_fault_active()),
-                                      g_request_soft_reboot);
-
     /* OEM-like battery voltage monitoring (ADC1/PA0) */
     battery_monitor_tick(g_ms);
 

@@ -134,11 +134,11 @@ TEST(key_seq_boot_delayed_raise)
     ASSERT_TRUE(g_key_level == 0u);
     ASSERT_TRUE(g_key_set_calls == 1u);
 
-    system_control_key_sequencer_tick(109u, 0u, 0u);
+    system_control_key_sequencer_tick(100u, 0u, 0u);
     ASSERT_TRUE(g_key_level == 0u);
     ASSERT_TRUE(g_key_set_calls == 1u);
 
-    system_control_key_sequencer_tick(110u, 0u, 0u);
+    system_control_key_sequencer_tick(101u, 0u, 0u);
     ASSERT_TRUE(g_key_level == 1u);
     ASSERT_TRUE(g_key_set_calls == 2u);
 }

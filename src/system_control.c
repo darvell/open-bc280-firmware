@@ -9,7 +9,7 @@
 #include "src/app.h"
 #include "platform/board_init.h"
 
-#define KEY_SEQ_DELAY_MS 10u
+#define KEY_SEQ_DELAY_MS 1u
 
 typedef enum key_seq_state_t {
     KEY_SEQ_BOOT_WAIT_HIGH = 0,
