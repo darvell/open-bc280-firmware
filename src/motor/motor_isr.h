@@ -32,16 +32,32 @@
 #define MOTOR_TX_INTERVAL_MS    50u     /* Send command every 50ms */
 #define MOTOR_RX_TIMEOUT_MS     100u    /* Timeout if no response */
 
+/* Max raw motor UART TX payload that can be buffered for the next ISR send.
+ * This is a transport limit, not a protocol limit. */
+#define MOTOR_ISR_TX_MAX        96u
+
 /*
  * Protocol state machine states
  */
 typedef enum {
     MOTOR_ISR_STATE_IDLE = 0,       /* Waiting to send command */
-    MOTOR_ISR_STATE_TX_PENDING,     /* Command ready to send */
     MOTOR_ISR_STATE_WAIT_RESPONSE,  /* Waiting for motor reply */
     MOTOR_ISR_STATE_RX_ACTIVE,      /* Receiving response bytes */
-    MOTOR_ISR_STATE_ERROR,          /* Protocol error state */
 } motor_isr_state_t;
+
+/*
+ * Motor UART protocol identifier.
+ *
+ * OEM v2.5.1 has multiple frame formats on the motor UART across variants.
+ * We keep protocol ids stable so higher layers can dispatch without relying on
+ * decompiler/OEM symbol names.
+ */
+typedef enum {
+    MOTOR_PROTO_SHENGYI_3A1A = 0, /* 0x3A ... len ... sum16 ... CRLF */
+    MOTOR_PROTO_STX02_XOR    = 1, /* 0x02 len ... xor */
+    MOTOR_PROTO_AUTH_XOR_CR  = 2, /* 0x46/0x53 ... xor ... CR */
+    MOTOR_PROTO_V2_FIXED     = 3, /* short fixed frames (heuristic) */
+} motor_proto_t;
 
 /*
  * Initialize motor ISR subsystem
@@ -83,22 +99,41 @@ void motor_isr_tick(uint32_t now_ms);
  * Note: Can be called from main loop. Command will be sent
  *       at next TX interval.
  */
-int motor_isr_queue_cmd(uint8_t assist_level,
-                         bool light_on,
-                         bool walk_active,
-                         bool battery_low,
-                         bool speed_over);
+bool motor_isr_queue_cmd(uint8_t assist_level,
+                        bool light_on,
+                        bool walk_active,
+                        bool battery_low,
+                        bool speed_over);
 
 /*
- * Queue a raw motor frame for transmission (e.g., 0xC1/0xC3 responses).
+ * Queue a raw motor UART frame for transmission.
+ *
+ * This is a transport-level API used by multiple protocol variants.
  *
  * Args:
- *   frame - full Shengyi frame bytes
+ *   frame - full motor UART frame bytes
  *   len   - frame length
  *
- * Returns 1 if queued, 0 otherwise.
+ * Returns true if queued, false otherwise.
  */
-int motor_isr_queue_frame(const uint8_t *frame, uint8_t len);
+bool motor_isr_queue_frame(const uint8_t *frame, uint8_t len);
+
+/*
+ * Returns true if a TX frame is currently pending (will be sent by the ISR),
+ * 0 otherwise.
+ */
+bool motor_isr_tx_busy(void);
+
+/*
+ * For the short "v2" protocol, the OEM RX side is request/response aligned:
+ * the expected response length depends on the last request.
+ *
+ * Call this immediately before queueing the corresponding request so the ISR
+ * can capture the response deterministically.
+ *
+ * expected_total_len includes all bytes in the response (including checksum).
+ */
+void motor_isr_v2_expect(uint16_t msg_id, uint8_t expected_total_len);
 
 /*
  * Copy the last received motor frame (if any).
@@ -109,11 +144,15 @@ int motor_isr_queue_frame(const uint8_t *frame, uint8_t len);
  *   out_len  - returns frame length
  *   out_op   - returns opcode
  *   out_seq  - returns sequence id
+ *   out_proto - returns protocol id
+ *   out_aux16 - returns protocol-specific auxiliary value (e.g., msg_id)
  *
- * Returns 1 if a frame was copied, 0 otherwise.
+ * Returns true if a frame was copied, false otherwise.
  */
-int motor_isr_copy_last_frame(uint8_t *out, uint8_t cap, uint8_t *out_len,
-                              uint8_t *out_op, uint8_t *out_seq);
+bool motor_isr_copy_last_frame(uint8_t *out, uint8_t cap, uint8_t *out_len,
+                              uint8_t *out_op, uint8_t *out_seq,
+                              motor_proto_t *out_proto,
+                              uint16_t *out_aux16);
 
 /*
  * Get current ISR state (for debugging)

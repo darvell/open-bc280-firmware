@@ -3,15 +3,13 @@
 #include "ui_display.h"
 #include "ui_draw_common.h"
 #include "ui_font_bitmap.h"
+#include "platform/hw.h"
 
 #if !defined(HOST_TEST)
 #include "drivers/spi_flash.h"
 #include "drivers/st7789_8080.h"
 #include "platform/lcd_dma.h"
 #endif
-
-#define LCD_CMD_ADDR  0x60000000u
-#define LCD_DATA_ADDR 0x60020000u
 
 #define LCD_DMA_BUF_PIXELS 1024u
 

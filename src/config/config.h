@@ -10,6 +10,25 @@
 /* Config flags (stored in config_t.flags) */
 #define CONFIG_FLAG_WALK_ENABLED    0x01u  /* Walk mode capability */
 #define CONFIG_FLAG_DEV_SCREENS     0x02u  /* Show developer screens (Bus, Capture, Engineer) */
+
+/*
+ * Reserved bits (stored in config_t.reserved).
+ *
+ * These must not change CONFIG_BLOB_SIZE. We use them for small, persistent
+ * knobs that affect on-wire compatibility with OEM variants.
+ *
+ * OEM BC280 app v2.5.1 STX02/XOR (0x02-framed) transmit flags:
+ * - bit6_src default 0
+ * - bit3_src default 1
+ * - speed_gate default 0
+ *
+ * To keep backwards compatibility with existing configs (reserved==0), we
+ * encode the OEM defaults as "all bits clear".
+ */
+#define CFG_RSVD_STX02_BIT6_ENABLE        0x0001u /* if set, set STX02 flags bit6 */
+#define CFG_RSVD_STX02_BIT3_DISABLE       0x0002u /* if set, clear STX02 flags bit3 (OEM default is set) */
+#define CFG_RSVD_STX02_SPEED_GATE_ENABLE  0x0004u /* if set, enable OEM-like speed-limit gating (flags bit2) */
+#define CFG_RSVD_STX02_MASK (CFG_RSVD_STX02_BIT6_ENABLE | CFG_RSVD_STX02_BIT3_DISABLE | CFG_RSVD_STX02_SPEED_GATE_ENABLE)
 #define MODE_PIN_DEFAULT      1234u
 #define MODE_PIN_MAX          9999u
 #define MODE_PIN_RATE_LIMIT_MS 2000u

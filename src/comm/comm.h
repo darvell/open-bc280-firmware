@@ -31,7 +31,7 @@ typedef struct {
     uint8_t cmd;
     uint8_t len;
     uint8_t data[COMM_MAX_PAYLOAD];
-uint8_t checksum;
+    uint8_t checksum;
 } comm_frame_t;
 
 /* API declarations */
@@ -59,5 +59,17 @@ void poll_uart_rx_ports(void);
 extern int g_comm_skip_uart2;
 void send_state_frame_bin(void);
 void print_status(void);
+
+/* ---------- BLE TTM module handshake ---------- */
+
+/* Send "TTM:MAC-?\r\n" to query the BLE module's MAC address.
+ * Call once during boot after UART1 is initialized. */
+void ble_ttm_send_mac_query(void);
+
+/* Returns 1 if the TTM module reported "TTM:CONNECTED". */
+uint8_t ble_ttm_is_connected(void);
+
+/* MAC address string (e.g. "001122334455"), empty if not yet received. */
+const char *ble_ttm_get_mac(void);
 
 #endif /* COMM_H */

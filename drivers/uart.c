@@ -70,6 +70,16 @@ void uart_init_basic(uint32_t base, uint32_t brr_div)
     mmio_write32(UART_CR1(base), cr1);
 }
 
+void uart_set_9bit(uint32_t base, uint8_t enable)
+{
+    uint32_t cr1 = mmio_read32(UART_CR1(base));
+    if (enable)
+        cr1 |= (1u << 12); /* M: 9 data bits */
+    else
+        cr1 &= ~(1u << 12);
+    mmio_write32(UART_CR1(base), cr1);
+}
+
 int uart_tx_ready(uint32_t base)
 {
     return (mmio_read32(UART_SR(base)) & (1u << 7)) != 0; /* TXE */
@@ -80,6 +90,13 @@ void uart_putc(uint32_t base, uint8_t c)
     while (!uart_tx_ready(base))
         ;
     mmio_write32(UART_DR(base), c);
+}
+
+void uart_putc_9bit(uint32_t base, uint16_t value)
+{
+    while (!uart_tx_ready(base))
+        ;
+    mmio_write32(UART_DR(base), (uint32_t)(value & 0x1FFu));
 }
 
 void uart_write(uint32_t base, const uint8_t *data, size_t len)
@@ -113,6 +130,24 @@ uint8_t uart_getc(uint32_t base)
     if (idx >= 0 && uart_rx_fifo_pop(idx, &b))
         return b;
     return (uint8_t)mmio_read32(UART_DR(base));
+}
+
+uint16_t uart_getc_9bit(uint32_t base)
+{
+    int idx = uart_port_index(base);
+    uint8_t b = 0;
+    if (idx >= 0 && uart_rx_fifo_pop(idx, &b))
+        return (uint16_t)b;
+    return (uint16_t)(mmio_read32(UART_DR(base)) & 0x1FFu);
+}
+
+void uart_set_baud(uint32_t base, uint32_t brr_div)
+{
+    /* Disable UE, change BRR, re-enable UE. */
+    uint32_t cr1 = mmio_read32(UART_CR1(base));
+    mmio_write32(UART_CR1(base), cr1 & ~0x2000u); /* clear UE */
+    mmio_write32(UART_BRR(base), brr_div);
+    mmio_write32(UART_CR1(base), cr1); /* restore UE */
 }
 
 void uart_isr_rx_drain(uint32_t base)

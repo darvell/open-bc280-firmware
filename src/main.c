@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include "app.h"
 #include "app_state.h"
@@ -10,11 +9,13 @@
 #include "ui_state.h"
 #include "src/control/control.h"
 #include "src/power/power.h"
+#include "src/power/battery_monitor.h"
 #include "src/input/input.h"
 #include "src/input/oem_buttons.h"
 #include "src/motor/shengyi.h"
 #include "src/motor/motor_cmd.h"
 #include "src/motor/motor_isr.h"
+#include "src/motor/motor_link.h"
 #include "src/kernel/event_queue.h"
 #include "src/bus/bus.h"
 #include "src/comm/comm.h"
@@ -28,8 +29,10 @@
 #include "platform/mmio.h"
 #include "platform/time.h"
 #include "platform/board_init.h"
+#include "platform/early_init.h"
 #include "drivers/spi_flash.h"
 #include "drivers/uart.h"
+#include "boot_log.h"
 #include "storage/layout.h"
 #include "storage/boot_stage.h"
 #include "storage/logs.h"
@@ -39,6 +42,8 @@
 #include "util/crc32.h"
 #include "src/core/math_util.h"
 #include "src/system_control.h"
+#include "src/boot_phase.h"
+#include "src/boot_monitor.h"
 
 static inline uint16_t hw_gpio_read_idr(char port)
 {
@@ -53,14 +58,14 @@ static inline uint16_t hw_gpio_read_idr(char port)
 
 static void platform_power_hold_early(void)
 {
-    /* Match OEM bootloader: drive PB1 high early to keep power latched. */
+    /* OEM app v2.5.1: PB1 is driven low during early init (likely motor/controller KEY/enable). */
     const uint32_t RCC_APB2ENR_IOPA = (1u << 2);
     const uint32_t RCC_APB2ENR_IOPB = (1u << 3);
     mmio_write32(RCC_APB2ENR, mmio_read32(RCC_APB2ENR) | RCC_APB2ENR_IOPA | RCC_APB2ENR_IOPB);
     uint32_t crl = mmio_read32(GPIO_CRL(GPIOB_BASE));
     crl = (crl & ~(0xFu << 4)) | (0x2u << 4); /* PB1 output push-pull @ 2MHz */
     mmio_write32(GPIO_CRL(GPIOB_BASE), crl);
-    mmio_write32(GPIO_BSRR(GPIOB_BASE), (1u << 1));
+    mmio_write32(GPIO_BRR(GPIOB_BASE), (1u << 1));
     /* Keep PA8 (backlight PWM) low until TIM1 is initialized. */
     uint32_t crh = mmio_read32(GPIO_CRH(GPIOA_BASE));
     crh = (crh & ~(0xFu << 0)) | 0x2u; /* PA8 output push-pull @ 2MHz */
@@ -68,101 +73,22 @@ static void platform_power_hold_early(void)
     mmio_write32(GPIO_BRR(GPIOA_BASE), (1u << 8));
 }
 
-static void append_hex32(char **p, size_t *remaining, uint32_t v)
+static uint32_t uart_brr_div(uint32_t pclk_hz, uint32_t baud)
 {
-    static const char kHex[] = "0123456789ABCDEF";
-    if (!p || !*p || !remaining || *remaining < 10)
-        return;
-    char *out = *p;
-    *out++ = '0';
-    *out++ = 'x';
-    for (int i = 7; i >= 0; --i)
-    {
-        uint8_t nib = (uint8_t)((v >> (i * 4)) & 0xFu);
-        if ((size_t)(out - *p) + 1 >= *remaining)
-            break;
-        *out++ = kHex[nib];
-    }
-    *remaining -= (size_t)(out - *p);
-    *p = out;
+    if (!pclk_hz || !baud)
+        return 7500u;
+    uint32_t div = (pclk_hz + (baud / 2u)) / baud;
+    return div ? div : 7500u;
 }
 
-static void append_hex8(char **p, size_t *remaining, uint8_t v)
+static void uart1_init_9600(void)
 {
-    static const char kHex[] = "0123456789ABCDEF";
-    if (!p || !*p || !remaining || *remaining < 3)
-        return;
-    char *out = *p;
-    *out++ = kHex[(v >> 4) & 0x0F];
-    *out++ = kHex[v & 0x0F];
-    *remaining -= (size_t)(out - *p);
-    *p = out;
+    const uint32_t baud = 9600u;
+    uint32_t pclk2 = rcc_get_pclk_hz_fallback(1u);
+    uart_init_basic(UART1_BASE, uart_brr_div(pclk2, baud));
 }
 
-static void safe_mode_uart_line(const char *label, uint32_t value)
-{
-    char line[96];
-    char *ptr = line;
-    size_t rem = sizeof(line);
-    append_str(&ptr, &rem, label);
-    append_hex32(&ptr, &rem, value);
-    append_char(&ptr, &rem, '\n');
-    uart_write(UART1_BASE, (const uint8_t *)line, (size_t)(ptr - line));
-}
-
-static void safe_mode_print_crash(uint8_t valid, const uint8_t *buf)
-{
-    char line[160];
-    char *ptr = line;
-    size_t rem = sizeof(line);
-    append_str(&ptr, &rem, "[crash] valid=");
-    append_u16(&ptr, &rem, valid ? 1u : 0u);
-    if (!valid || !buf)
-    {
-        append_char(&ptr, &rem, '\n');
-        uart_write(UART1_BASE, (const uint8_t *)line, (size_t)(ptr - line));
-        return;
-    }
-
-    append_str(&ptr, &rem, " pc=");
-    append_hex32(&ptr, &rem, load_be32(&buf[CRASH_DUMP_OFF_PC]));
-    append_str(&ptr, &rem, " lr=");
-    append_hex32(&ptr, &rem, load_be32(&buf[CRASH_DUMP_OFF_LR]));
-    append_str(&ptr, &rem, " sp=");
-    append_hex32(&ptr, &rem, load_be32(&buf[CRASH_DUMP_OFF_SP]));
-    append_str(&ptr, &rem, " cfsr=");
-    append_hex32(&ptr, &rem, load_be32(&buf[CRASH_DUMP_OFF_CFSR]));
-    append_str(&ptr, &rem, " hfsr=");
-    append_hex32(&ptr, &rem, load_be32(&buf[CRASH_DUMP_OFF_HFSR]));
-    append_char(&ptr, &rem, '\n');
-    uart_write(UART1_BASE, (const uint8_t *)line, (size_t)(ptr - line));
-}
-
-static void safe_mode_dump_gpio(void)
-{
-    safe_mode_uart_line("[gpio] RCC_APB2ENR=", mmio_read32(RCC_APB2ENR));
-    safe_mode_uart_line("[gpio] RCC_APB1ENR=", mmio_read32(RCC_APB1ENR));
-    safe_mode_uart_line("[gpio] GPIOA_CRL=", mmio_read32(GPIO_CRL(GPIOA_BASE)));
-    safe_mode_uart_line("[gpio] GPIOA_CRH=", mmio_read32(GPIO_CRH(GPIOA_BASE)));
-    safe_mode_uart_line("[gpio] GPIOA_IDR=", mmio_read32(GPIO_IDR(GPIOA_BASE)));
-    safe_mode_uart_line("[gpio] GPIOA_ODR=", mmio_read32(GPIO_ODR(GPIOA_BASE)));
-    safe_mode_uart_line("[gpio] GPIOB_CRL=", mmio_read32(GPIO_CRL(GPIOB_BASE)));
-    safe_mode_uart_line("[gpio] GPIOB_CRH=", mmio_read32(GPIO_CRH(GPIOB_BASE)));
-    safe_mode_uart_line("[gpio] GPIOB_IDR=", mmio_read32(GPIO_IDR(GPIOB_BASE)));
-    safe_mode_uart_line("[gpio] GPIOB_ODR=", mmio_read32(GPIO_ODR(GPIOB_BASE)));
-    safe_mode_uart_line("[gpio] GPIOC_CRL=", mmio_read32(GPIO_CRL(GPIOC_BASE)));
-    safe_mode_uart_line("[gpio] GPIOC_CRH=", mmio_read32(GPIO_CRH(GPIOC_BASE)));
-    safe_mode_uart_line("[gpio] GPIOC_IDR=", mmio_read32(GPIO_IDR(GPIOC_BASE)));
-    safe_mode_uart_line("[gpio] GPIOC_ODR=", mmio_read32(GPIO_ODR(GPIOC_BASE)));
-}
-
-static uint8_t g_safe_mode_crash_buf[CRASH_DUMP_SIZE];
-static uint32_t g_watchdog_last_feed_ms;
-static uint8_t g_watchdog_active;
-uint8_t g_watchdog_feed_enabled;
-static void watchdog_feed(void);
-
-static void safe_mode_enter(uint8_t reinit_timebase)
+static void monitor_enter(boot_phase_t phase, uint8_t reinit_timebase)
 {
     disable_irqs();
     if (reinit_timebase)
@@ -172,95 +98,27 @@ static void safe_mode_enter(uint8_t reinit_timebase)
         platform_timebase_init_oem();
     }
 
-    platform_ble_control_pins_init();
-    platform_uart_pins_init();
-    const uint32_t uart_baud = 9600u;
-    uint32_t pclk2 = rcc_get_pclk_hz_fallback(1u);
-    uint32_t brr1 = (pclk2 + (uart_baud / 2u)) / uart_baud;
-    if (brr1 == 0u)
-        brr1 = 7500u;
-    uart_init_basic(UART1_BASE, brr1);
+    platform_ble_control_pins_init_early();
+    platform_uart1_pins_init_early();
+    uart1_init_9600();
 
-    uint32_t pclk1 = rcc_get_pclk_hz_fallback(0u);
-    uint32_t brr2 = (pclk1 + (uart_baud / 2u)) / uart_baud;
-    if (brr2 == 0u)
-        brr2 = 7500u;
-    uart_init_basic(UART2_BASE, brr2);
-
+    /* Boot monitor only speaks over BLE UART1 by default. */
     g_comm_skip_uart2 = 1;
+    g_boot_phase = phase;
+
     platform_uart_irq_init();
     enable_irqs();
 
-    g_watchdog_active = 1u;
-    g_watchdog_feed_enabled = 1u;
-    g_watchdog_last_feed_ms = g_ms;
-    watchdog_feed();
+    boot_monitor_run();
 
-    uint8_t crash_valid = crash_dump_load(g_safe_mode_crash_buf);
-    safe_mode_print_crash(crash_valid, g_safe_mode_crash_buf);
-    safe_mode_dump_gpio();
-
-    uint8_t uart2_buf[48];
-    uint8_t uart2_len = 0;
-    uint32_t uart2_last_flush = g_ms;
-
-    while (1)
-    {
-        platform_time_poll_1ms();
-        watchdog_tick();
-        poll_uart_rx_ports();
-        while (uart_rx_available(UART2_BASE))
-        {
-            uint8_t b = uart_getc(UART2_BASE);
-            if (uart2_len < sizeof(uart2_buf))
-                uart2_buf[uart2_len++] = b;
-        }
-        if (uart2_len)
-        {
-            uint32_t now = g_ms;
-            if (uart2_len >= sizeof(uart2_buf) || (uint32_t)(now - uart2_last_flush) > 20u)
-            {
-                char line[160];
-                char *ptr = line;
-                size_t rem = sizeof(line);
-                const char *tag = "[UART2] ";
-                while (*tag && rem > 1)
-                {
-                    *ptr++ = *tag++;
-                    rem--;
-                }
-                for (uint8_t i = 0; i < uart2_len && rem > 3; ++i)
-                {
-                    append_hex8(&ptr, &rem, uart2_buf[i]);
-                    if (rem > 1)
-                    {
-                        *ptr++ = ' ';
-                        rem--;
-                    }
-                }
-                if (rem > 1)
-                {
-                    *ptr++ = '\n';
-                    rem--;
-                }
-                *ptr = 0;
-                uart_write(UART1_BASE, (const uint8_t *)line, (size_t)(ptr - line));
-                uart2_len = 0;
-                uart2_last_flush = now;
-            }
-        }
-        wfi();
-    }
+    disable_irqs();
+    g_boot_phase = BOOT_PHASE_MONITOR;
 }
 
 /* -------------------------------------------------------------
  * Core + board constants (BC280 platform description)
  * ------------------------------------------------------------- */
 
-
-#define IWDG_KR_UNLOCK 0x5555u
-#define IWDG_KR_START  0xCCCCu
-#define IWDG_KR_FEED   0xAAAAu
 
 #define RESET_FLAG_BOR  (1u << 0)
 #define RESET_FLAG_PIN  (1u << 1)
@@ -269,10 +127,6 @@ static void safe_mode_enter(uint8_t reinit_timebase)
 #define RESET_FLAG_IWDG (1u << 4)
 #define RESET_FLAG_WWDG (1u << 5)
 #define RESET_FLAG_LPWR (1u << 6)
-
-#define WATCHDOG_PRESCALER 3u  /* 64 prescaler (PR=0x3) */
-#define WATCHDOG_RELOAD 1250u  /* ~2s at 40kHz LSI with /64 prescaler */
-#define WATCHDOG_FEED_PERIOD_MS 250u
 
 uint32_t g_last_print;
 uint16_t g_reset_flags;
@@ -294,8 +148,6 @@ uint8_t g_headlight_enabled;
 uint8_t g_hw_caps = CAP_FLAG_WALK;
 /* g_walk_*, g_regen defined in control.c */
 
-#define UI_ALERT_ACK_MS 5000u
-
 /* Control types from control.h: cruise_mode_t, cruise_resume_reason_t, cruise_state_t,
  * drive_mode_t, drive_state_t, boost_state_t - globals defined in control.c */
 
@@ -313,6 +165,9 @@ uint16_t g_cadence_bias_q15;
 uint8_t g_active_profile_id = 0;
 uint32_t g_last_profile_switch_ms = 0;
 uint8_t g_debug_uart_mask = 0u;
+
+/* Current boot phase, used to gate monitor-only commands. */
+volatile boot_phase_t g_boot_phase = BOOT_PHASE_APP;
 
 /* -------------------------------------------------------------
  * Config blob (versioned, CRC'd, double-buffered in SPI flash)
@@ -351,7 +206,7 @@ void buttons_tick(void)
 uint8_t g_last_brake_state;
 uint8_t g_brake_edge;
 
-uint8_t g_request_soft_reboot;
+reboot_request_t g_request_soft_reboot;
 event_queue_t g_motor_events;
 
 /* -------------------------------------------------------------
@@ -360,7 +215,7 @@ event_queue_t g_motor_events;
 
 
 /* -------------------------------------------------------------
- * Reset reason + watchdog helpers
+ * Reset reason helpers
  * ------------------------------------------------------------- */
 static uint16_t reset_flags_from_csr(uint32_t csr)
 {
@@ -391,32 +246,6 @@ static void reset_flags_capture(void)
     mmio_write32(RCC_CSR, RCC_CSR_RMVF);
 }
 
-static void watchdog_init(void)
-{
-    mmio_write32(IWDG_KR, IWDG_KR_UNLOCK);
-    mmio_write32(IWDG_PR, WATCHDOG_PRESCALER);
-    mmio_write32(IWDG_RLR, WATCHDOG_RELOAD);
-    mmio_write32(IWDG_KR, IWDG_KR_START);
-    g_watchdog_active = 1;
-    g_watchdog_last_feed_ms = g_ms;
-}
-
-static void watchdog_feed(void)
-{
-    if (!g_watchdog_active)
-        return;
-    mmio_write32(IWDG_KR, IWDG_KR_FEED);
-    g_watchdog_last_feed_ms = g_ms;
-}
-
-void watchdog_tick(void)
-{
-    if (!g_watchdog_active || !g_watchdog_feed_enabled)
-        return;
-    if ((uint32_t)(g_ms - g_watchdog_last_feed_ms) >= WATCHDOG_FEED_PERIOD_MS)
-        watchdog_feed();
-}
-
 /* -------------------------------------------------------------
  * Utilities
  * ------------------------------------------------------------- */
@@ -428,9 +257,29 @@ static void headlight_toggle_oem(void)
 
 static void system_reset(void)
 {
+    platform_key_output_set(0u);
     mmio_write32(SCB_AIRCR, SCB_AIRCR_VECTKEY | SCB_AIRCR_SYSRESETREQ);
     while (1)
         ;
+}
+
+static void watchdog_start_runtime(void)
+{
+    /*
+     * Start IWDG with a long timeout (~26s at 40kHz LSI, /256 prescaler)
+     * so normal runtime can survive long flash/IO operations while still
+     * guaranteeing eventual recovery from hangs.
+     */
+    mmio_write32(IWDG_KR, IWDG_KR_UNLOCK);
+    mmio_write32(IWDG_PR, 0x6u);      /* /256 */
+    mmio_write32(IWDG_RLR, 0x0FFFu);  /* max reload */
+    mmio_write32(IWDG_KR, IWDG_KR_START);
+    mmio_write32(IWDG_KR, IWDG_KR_FEED);
+}
+
+void watchdog_feed_runtime(void)
+{
+    mmio_write32(IWDG_KR, IWDG_KR_FEED);
 }
 
 __attribute__((used)) static void hardfault_capture(uint32_t *stack)
@@ -441,7 +290,9 @@ __attribute__((used)) static void hardfault_capture(uint32_t *stack)
     uint32_t pc = stack[6];
     uint32_t psr = stack[7];
     crash_dump_capture(sp, lr, pc, psr);
-    safe_mode_enter(1u);
+    /* Enter a minimal UART1 boot monitor so the host can fetch crash_dump/memory
+     * before we reset. */
+    monitor_enter(BOOT_PHASE_PANIC, 1u);
     system_reset();
 }
 
@@ -751,7 +602,26 @@ void recompute_outputs(void)
         g_outputs.cruise_state = 0;
     }
 
+    if (motor_cmd_link_fault_active())
+    {
+        cruise_cancel(CRUISE_EVT_CANCEL_FAULT);
+        g_outputs.assist_mode = 0;
+        g_outputs.cmd_power_w = 0;
+        g_outputs.cmd_current_dA = 0;
+        g_outputs.cruise_state = 0;
+    }
+
     regen_update();
+
+    if (g_outputs.cmd_current_dA > eff_cap_current)
+    {
+        g_outputs.cmd_current_dA = eff_cap_current;
+        {
+            uint32_t p_from_i = (uint32_t)g_outputs.cmd_current_dA * 2u;
+            if (g_outputs.cmd_power_w > p_from_i)
+                g_outputs.cmd_power_w = (uint16_t)p_from_i;
+        }
+    }
 
     g_outputs.cruise_state = (uint8_t)g_cruise.mode;
     g_outputs.last_ms        = g_ms;
@@ -763,10 +633,12 @@ void recompute_outputs(void)
 
 void reboot_to_bootloader(void)
 {
-    const uint32_t bl_base = 0x08000000u;
-    const uint32_t bl_sp   = *(volatile uint32_t *)(bl_base + 0x00u);
-    const uint32_t bl_rst  = *(volatile uint32_t *)(bl_base + 0x04u);
+    const uint32_t bl_base = FLASH_BOOTLOADER_BASE;
+    const uint32_t bl_sp   = *(volatile uint32_t *)(bl_base + FLASH_VECTOR_SP_OFFSET);
+    const uint32_t bl_rst  = *(volatile uint32_t *)(bl_base + FLASH_VECTOR_RESET_OFFSET);
     disable_irqs();
+    /* Match OEM shutdown semantics: deassert controller key/enable before reboot. */
+    platform_key_output_set(0u);
     mmio_write32(SCB_VTOR, bl_base);
     set_msp(bl_sp);
     ((void (*)(void))(uintptr_t)bl_rst)();
@@ -776,10 +648,11 @@ void reboot_to_bootloader(void)
 
 void reboot_to_app(void)
 {
-    const uint32_t app_base = 0x08010000u;
-    const uint32_t app_sp   = *(volatile uint32_t *)(app_base + 0x00u);
-    const uint32_t app_rst  = *(volatile uint32_t *)(app_base + 0x04u);
+    const uint32_t app_base = FLASH_APP_BASE;
+    const uint32_t app_sp   = *(volatile uint32_t *)(app_base + FLASH_VECTOR_SP_OFFSET);
+    const uint32_t app_rst  = *(volatile uint32_t *)(app_base + FLASH_VECTOR_RESET_OFFSET);
     disable_irqs();
+    platform_key_output_set(0u);
     mmio_write32(SCB_VTOR, app_base);
     set_msp(app_sp);
     ((void (*)(void))(uintptr_t)app_rst)();
@@ -790,6 +663,7 @@ void reboot_to_app(void)
 static inline void boot_stage_mark(uint32_t value)
 {
     boot_stage_log(value);
+    boot_log_stage(value);
 }
 
 void print_status(void)
@@ -829,12 +703,12 @@ int main(void)
      * Ensure vectors point at the app image.
      *
      * On hardware, 0x08010000 is the real flash address for the app vector table.
-     * In Renode, the same image is also loaded at the alias 0x00010000; some setups
+     * In simulator setups, the same image is also loaded at the alias 0x00010000; some setups
      * route vectors through the alias, so fall back if VTOR write appears ignored.
      */
-    mmio_write32(SCB_VTOR, 0x08010000u);
-    if (mmio_read32(SCB_VTOR) != 0x08010000u)
-        mmio_write32(SCB_VTOR, 0x00010000u);
+    mmio_write32(SCB_VTOR, FLASH_APP_BASE);
+    if (mmio_read32(SCB_VTOR) != FLASH_APP_BASE)
+        mmio_write32(SCB_VTOR, FLASH_APP_ALIAS);
     reset_flags_capture();
     /* Encode reset flags for post-mortem: 0xE0000000 | flags. */
     boot_stage_mark(0xE0000000u | (uint32_t)g_reset_flags);
@@ -852,48 +726,43 @@ int main(void)
     /* Always arm the OEM bootloader update flag for the next power cycle. */
     spi_flash_set_bootloader_mode_flag();
 
-    /* Safe-mode detection: crash dump present or any button held at boot. */
-    uint8_t safe_mode = 0;
-    uint8_t crash_valid = 0;
+    /* OEM doesn't have safe-mode. Just init buttons and continue. */
     platform_buttons_init();
-    platform_gpioc_aux_init();
-    {
-        uint8_t idr = (uint8_t)(mmio_read32(GPIO_IDR(GPIOC_BASE)) & OEM_BTN_MASK);
-        uint8_t pressed = (uint8_t)(~idr) & OEM_BTN_MASK;
-        if (pressed)
-            safe_mode = 1u;
-    }
-    crash_valid = crash_dump_load(g_safe_mode_crash_buf);
-    if (crash_valid)
-        safe_mode = 1u;
-
-    if (safe_mode)
-    {
-        safe_mode_enter(0u);
-    }
 
     platform_board_init();
+    platform_backlight_set_level(5u);
+
+    boot_log_lcd_ready();
     boot_stage_mark(0xB004);
+
+    /* OEM v2.5.1: battery ADC monitoring is active during normal runtime. */
+    battery_monitor_init();
+    boot_stage_mark(0xBAA1);
 
     /* UART1 (BLE) is on APB2; OEM app uses 9600. */
     const uint32_t uart_baud = 9600u;
     uint32_t pclk2 = rcc_get_pclk_hz_fallback(1u);
-    uint32_t brr1 = (pclk2 + (uart_baud / 2u)) / uart_baud;
-    if (brr1 == 0u)
-        brr1 = 7500u; /* 72MHz / 9600 */
+    uint32_t brr1 = uart_brr_div(pclk2, uart_baud);
     uart_init_basic(UART1_BASE, brr1);
-    boot_stage_mark(0xB005);
+    /* OEM v2.3.0: ble_uart1_full_init sends "TTM:MAC-?" to query BLE module MAC. */
+    ble_ttm_send_mac_query();
+    boot_log_uart_ready();
+    boot_stage_mark(0xBAA2);
+
+    /* OEM v2.5.1 configures PC5/PC6 pull-ups after BLE/UART init, not during LCD init. */
+    platform_gpioc_aux_init();
+    boot_stage_mark(0xBAA3);
 
     /* UART2 (motor) is on APB1; match OEM 9600 for Shengyi DWG22. */
+    platform_motor_uart_pins_init();
     uint32_t pclk1 = rcc_get_pclk_hz_fallback(0u);
-    uint32_t brr2 = (pclk1 + (uart_baud / 2u)) / uart_baud;
-    if (brr2 == 0u)
-        brr2 = 7500u;
+    uint32_t brr2 = uart_brr_div(pclk1, uart_baud);
     uart_init_basic(UART2_BASE, brr2);
+    /* OEM v2.3.0: UART2 is always 8N1 (word_length=0 in usart2_hw_init).
+     * The motor controller expects 8-bit framing on all protocols. */
 
     platform_uart_irq_init();
-    platform_motor_isr_enable();
-    boot_stage_mark(0xB006);
+    boot_stage_mark(0xBAA4);
 
     g_motor.rpm = 0;
     g_motor.torque_raw = 0;
@@ -914,7 +783,6 @@ int main(void)
     g_inputs.buttons = 0;
     g_inputs.last_ms = 0;
     g_input_caps = 0;
-    g_watchdog_feed_enabled = 0;
 
     g_outputs.assist_mode = 0;
     g_outputs.profile_id = 0;
@@ -939,14 +807,17 @@ int main(void)
 
     event_queue_init(&g_motor_events);
     motor_isr_init(&g_motor_events);
-    boot_stage_mark(0xB00A);
+    /* Enable motor ISR tick AFTER motor_isr_init, not before. */
+    platform_motor_isr_enable();
+    boot_stage_mark(0xBAA5);
     motor_cmd_init();
     shengyi_init();
-    boot_stage_mark(0xB00B);
+    motor_link_init();
+    boot_stage_mark(0xBAA6);
 
     event_log_load();
     stream_log_load();
-    boot_stage_mark(0xB00C);
+    boot_stage_mark(0xBAA7);
     if (g_reset_flags)
         event_log_append(EVT_RESET_REASON, (uint8_t)(g_reset_flags & 0xFFu));
 
@@ -970,10 +841,10 @@ int main(void)
     g_alert_ack_active = 0;
     g_alert_ack_until_ms = 0;
 
-    g_request_soft_reboot = 0;
+    g_request_soft_reboot = REBOOT_REQUEST_NONE;
     config_stage_reset();
     config_load_active();
-    boot_stage_mark(0xB007);
+    boot_stage_mark(0xBAA8);
     ab_update_init();
     g_outputs.profile_id = g_config_active.profile_id;
     g_ui_profile_select = g_active_profile_id;
@@ -984,16 +855,20 @@ int main(void)
     soft_start_reset();
     wizard_reset();
     ui_init(&g_ui);
-    boot_stage_mark(0xB008);
+    boot_stage_mark(0xBAA9);
 
     g_ms = 0;
     enable_irqs();
-    /* Watchdog disabled for now (manual power-cycle if needed). */
-    boot_stage_mark(0xB009);
+
+    /* Non-blocking OEM-like PB1 sequencing (low at boot, delayed high after scheduler start). */
+    system_control_key_sequencer_init(g_ms);
+
+    watchdog_start_runtime();
+    boot_stage_mark(0xBAAA);
     /* Emit one status line early for bring-up visibility. */
     print_status();
     shengyi_request_update(1u);
-    boot_stage_mark(0xB00D);
+    boot_stage_mark(0xBAAB);
 
     /*
      * Main loop - delegated to app.c for clean separation.

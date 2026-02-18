@@ -1,6 +1,5 @@
 # Firmware (BC280-class displays)
 
-Goal: small, auditable application image that the stock bootloader accepts at `0x08010000`, exposing a rich debug surface (peek/poke, flash read, code upload/exec) over UART1 (BLE module passthrough: TTM:CONNECTED + 0x55 frames) and UART2 (motor controller bus). Renode stubs mirror this mapping: UART1 = BLE, UART2 = motor.
 
 ## Target MCU
 This firmware targets **AT32F403AVCT7** (Cortex‑M4F, 256KB internal flash).
@@ -16,7 +15,6 @@ scripts/preflight_open_firmware.py --image build/open_firmware.bin
 For an end-to-end emulator sanity run (OEM → bootloader → open-fw → bootflag → power-cycle):
 
 ```bash
-python3 scripts/renode/test_full_update_flow.py
 ```
 - **Bootloader**: first 64KB (`0x08000000–0x0800FFFF`).
 - **App region**: 192KB at `0x08010000–0x0803FFFF`.
@@ -29,7 +27,6 @@ ninja -C build
 # build/open_firmware.bin
 ```
 
-## Fast host tests (no Renode)
 For quick logic checks (fixed-point helpers, ring buffer min/max, etc.), run the
 native host tests:
 ```bash
@@ -38,7 +35,6 @@ ninja -C build-host test
 ```
 These tests compile and run on the host toolchain (no ARM toolchain required).
 
-## Host simulator (no Renode)
 Run a full fake-bike loop with UART/BLE/sensor shims:
 ```bash
 meson setup build-host
@@ -202,30 +198,45 @@ Command details (OEM):
 - `0xAC` request: payload `[calibrate]` responds with either battery calibration status or current batt voltage (u32 big-endian).
 - `0xB0` response: 12 bytes pulled from system status flags.
 
-### OEM status packet (non-0x3A) built in `shengyi_build_status_packet`
-This is a separate Shengyi status frame assembled via `shengyi_packet_add_byte`
-and finalized with an XOR checksum. The sender transmits the data bytes plus checksum
-only (buffer offset +2, length includes checksum). Byte layout (19 data bytes + 1 checksum):
+### OEM status packet (non-0x3A) built in `APP_process_motor_control_flags`
+OEM v2.5.1 builds a 0x01/0x14/XOR “status/control” packet for the motor UART
+in `APP_process_motor_control_flags` @ `0x80222D4` (BC280 app v2.5.1).
+
+The packet is assembled via repeated calls to a helper that IDA often labels
+`enqueue_byte_for_ble_transmission`, but this is actually **motor UART TX**
+queueing in this mode.
+
+The sender transmits the data bytes plus checksum only (buffer offset +2,
+length includes checksum). Byte layout (19 data bytes + 1 checksum):
 - `byte 0` frame type (always `0x01` in OEM)
 - `byte 1` length (always `0x14`, equals data+checksum length)
 - `byte 2` frame counter (always `0x01` in OEM)
-- `byte 3` profile type (pad_0250[0], 3/5/9)
-- `byte 4` power level (mapped assist → 0–15)
-- `byte 5` status flags (bit7 always 1; bit6 brake; bit5 auth; bit3 headlight; bit2 low battery; bit1 error; bit0 startup; bit4 reserved)
-- `byte 6` display setting
+- `byte 3` mode byte (`byte_20001E54`, OEM default `2`; semantics TBD)
+- `byte 4` power level (OEM maps the current assist selection into 0–15; mapping depends on assist-count 3/5/9)
+- `byte 5` status flags (bitfield, recovered from `APP_process_motor_control_flags` @ `0x80222D4`):
+  - bit7: always 1
+  - bit6: source `byte_20001E55 & 1` (field is set via 0xC0 config path; semantics TBD)
+  - bit5: source `byte_20001DA9 & 1` (user-toggled flag; strong hypothesis: lights/headlight enable)
+  - bit4: cleared in OEM
+  - bit3: source `byte_20001E56 & 1` (field is set via 0xC0 config path; semantics TBD)
+  - bit2: speed-limit flag (gated by `byte_20001E65` and a compare `word_20001DAC` vs `n0x1FE`)
+    - Evidence: `word_20001DAC` is a filtered `kph*10` speed value updated in `sub_8021574` from `word_20003018`.
+    - OEM sets bit2 when `word_20001DAC > n0x1FE` (over the configured limit).
+  - bit1: source `byte_20001DA6 & 1` (special-mode request; likely walk/cruise, see `sub_801B5AC` returning 11 when set)
+  - bit0: one-shot pulse behavior (set when `byte_20001DA4` is set, then cleared)
+- `byte 6` display setting (`byte_20001E49`, OEM default `1`)
 - `byte 7..8` wheel_size_x10 (big-endian)
-- `byte 9` battery current raw (pad_0250[4])
-- `byte 10` battery voltage raw (pad_0250[5])
-- `byte 11` controller temperature raw (pad_0250[7])
+- `byte 9` config byte `n3_1` (OEM default `3`, bounded `3..0x18` in 0xC0 config path; semantics TBD)
+- `byte 10` config byte `n3_2` (OEM default `3`, bounded `0..5` in 0xC0 config path; semantics TBD)
+- `byte 11` config byte `byte_20001E5B` (OEM default `0`; semantics TBD)
 - `byte 12` speed limit (kph)
 - `byte 13` current limit (A)
 - `byte 14..15` battery threshold (mV/100, big-endian)
 - `byte 16..17` reserved (0)
-- `byte 18` status2 (low nibble error code)
+- `byte 18` status2 (low nibble is `byte_20001E5A & 0x0F`; high bits cleared in OEM)
 - `byte 19` XOR checksum of bytes 0..18
 
 ## Host MCU peripheral shim (C scope)
-For host-only unit tests (no Renode), we provide a minimal MCU peripheral shim
 that mirrors the **subset** of STM32F1 MMIO interactions observed in OEM/open
 firmware flows:
 - RCC reset flags (CSR, RMVF clear)
@@ -237,11 +248,8 @@ firmware flows:
 
 The shim lives under `tests/host/` and is **not** compiled into
 embedded builds. It exists purely to keep the host sim behavior aligned with OEM
-peripheral expectations when Renode is not available.
 
-## Host LCD dump (no Renode)
 The host sim can emit a crude LCD dump as a PPM image so you can see the UI
-without Renode:
 
 ```bash
 meson setup build-host
@@ -330,45 +338,10 @@ Wheel size code mapping (from switch):
 - code 4 → 240, 1914
 - code 5 → 260, 2074
 - code 6 → 275, 2193
-- code 7 → 290, 2313
-
-## Load in Renode
-Use `renode/bc280_open_firmware.resc`:
-```bash
-renode/Renode.app/Contents/MacOS/renode --disable-xwt \
-  -e "include @renode/bc280_open_firmware.resc"
-```
-The script:
-- Loads the vendor combined firmware for the bootloader at `0x08000000`.
-- Overlays `build/open_firmware.bin` at `0x08010000` (and mirror 0x00010000).
-- Starts execution from the bootloader Reset vector so the normal boot path validates and jumps to the new app.
-
-UART1 output is streamed via the Renode USART1 stub; you’ll see status lines once per second plus responses to commands. UART1 maps to the BLE module passthrough on real hardware. UART2 maps to the motor controller bus.
-
 ## Debug protocol
 
-### Host helper for Renode/PTY
-For headless Renode tests we expose USART1 over a host PTY. Set
-`BC280_UART1_PTY=/tmp/uart1` before launching Renode; the `usart1_stub` will
-create a symlink at that path pointing to the live PTY. The helper at
-`scripts/renode/uart_client.py` speaks the 0x55-framed protocol without extra
-dependencies:
-
-```bash
-BC280_UART1_PTY=/tmp/uart1 \
-  renode/Renode.app/Contents/MacOS/renode ...
-
-scripts/renode/uart_client.py --port /tmp/uart1 ping
-scripts/renode/uart_client.py --port /tmp/uart1 set-state --rpm 220 --torque 50 --speed-dmph 123 --soc 87 --err 1
-scripts/renode/uart_client.py --port /tmp/uart1 stream --period-ms 500 --duration-ms 1500
-scripts/renode/uart_client.py --port /tmp/uart1 reboot-bootloader
-```
-
-The companion test script `scripts/renode/test_uart_protocol.py` runs a smoke
-sequence (ping, state roundtrip, streaming cadence) against `/tmp/uart1` and is
-suitable for CI once Renode is available in the environment. Additional
-scenario tests live under `scripts/renode/`, e.g. `test_walk_assist.py` and
-`test_brake_override.py` for safety cutouts.
+Use a local UART endpoint (for example, `/tmp/uart1`) with your serial tooling to exercise
+the protocol commands below.
 
 Frame format (both UART1 + UART2):
 ```
@@ -421,6 +394,12 @@ Supported commands:
 - lock/quick-action: lock_enabled[1], lock_active[1], lock_allowed_mask[1], quick_action_last[1]
 - `0x22` graph summary (active channel/window): returns {count[2], capacity[2], min[2], max[2], latest[2], period_ms[2], window_ms[2]} for the selected strip chart ring.
 - `0x23` graph control: payload {channel[1], window[1], flags[1?]}. Selects the active strip chart. `flags` bit0 resets the selected channel buffers. Channels: 0=SPD, 1=W, 2=V, 3=CAD, 4=TEMP. Windows: 0=30s, 1=2m, 2=10m.
+- `0x24` motor UART2 raw TX: payload is raw bytes to queue for the next UART2 send (max `MOTOR_ISR_TX_MAX` = 96 bytes) → status.
+- `0x25` motor last frame: returns {proto[1], op[1], seq[1], aux16[2], len[1], bytes[<=16]} for the most recently captured motor UART frame.
+- `0x26` motor protocol set: payload {mode[1]} → status. Modes: 0=AUTO, 1=Shengyi 0x3A, 2=STX02/XOR, 3=AUTH/XOR/CR, 4=v2 short.
+- `0x27` motor protocol get: returns {mode[1], active_proto[1], locked[1]}.
+- `0x28` motor STX02 options set: payload {opts[1], persist[1]=1} → status. `opts` bit0=`bit6_src`, bit1=`bit3_src`, bit2=`speed_gate` (enables OEM-like speed-limit gating/flag behavior).
+- `0x29` motor STX02 options get: returns {opts[1], reserved_be[2]} (for debugging / persistence visibility).
 - Config writes are allowed only when speed ≤ 1.0 mph (10 dMPH); otherwise status `0xFC`.
 - `0x30` config_get: returns the active config blob (81 bytes: ver,size,reserved,seq,crc32,wheel_mm,units,profile_id,theme,flags,button_map,button_flags,mode,pin_code,cap_current_dA,cap_speed_dmph,log_period_ms,soft_start_ramp_wps,soft_start_deadband_w,soft_start_kick_w,drive_mode,manual_current_dA,manual_power_w,boost_budget_ms,boost_cooldown_ms,boost_threshold_dA,boost_gain_q15,curve_count,curve[8] {x,y}).
 - `0x31` config_stage: payload is a 81-byte config blob (CRC checked). Firmware bumps seq and recalculates CRC, keeps it staged.
@@ -478,11 +457,6 @@ Versioning / compatibility:
 
 ### Telemetry spec + parser
 - Protocol spec (versioned): `docs/firmware/telemetry_protocol.md`
-- Parse Renode UART logs (extracts 0x81 telemetry frames from `uart1_tx.log`):
-```bash
-BC280_RENODE_OUTDIR=/tmp/bc280_renode_out \
-  scripts/renode/parse_uart_log.py --telemetry-only --json
-```
 
 ## Quick host helper (python)
 ```python
@@ -539,7 +513,6 @@ with BC280Client.serial('/tmp/uart1', baud=9600, timeout=0.2) as client:
 
 ## Portability knobs
 - `link.ld`: keeps `_stack_top < 0x20020000` to satisfy the stock bootloader’s SP mask check.
-- `main.c`: UART bases pulled from `renode/bc280_platform.repl`; adjust for other boards by changing `UART*_BASE` constants.
 - SPI flash offset mirrors what IDA showed (`g_bootloader_mode_flag` at `0x003FF080`, accessed via SPI1 with CS on PA4).
 
 ## Status overlay
@@ -551,7 +524,6 @@ Motor/state fields are writable via the command protocol; hook your own sensor/p
 
 ## UI plan (future)
 Goal: a small, “beautiful” UI that fits without bitmap assets or a full framebuffer.
-See `UI_SPEC.md` for a vector-ish rendering plan (dirty rects, stroked digits, procedural icons) and a Renode-testable trace strategy.
 
 ## Setup wizard (MVP)
 The on-device setup wizard uses button combos (no LCD UI yet):
@@ -560,5 +532,4 @@ The on-device setup wizard uses button combos (no LCD UI yet):
 - Steps: wheel circumference → units → button map → profile → commit.
 
 ## Power policy plan (future)
-Goal: fixed-function (no scripting) “multi-governor” control policy that protects motors (lugging/thermal), avoids brownouts (sag), and stays testable in Renode.
 See `POWER_CONTROL_SPEC.md`.

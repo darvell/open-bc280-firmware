@@ -6,10 +6,9 @@
 #include "platform/irq_dma.h"
 #include "platform/mmio.h"
 #include "platform/time.h"
+#include "storage/layout.h"
 
 /* External SPI flash (W25Q32-class) is accessed over SPI1 with CS on PA4. */
-#define SPI_FLASH_BOOTMODE_ADDR 0x003FF080u
-
 #define DMA1_BASE 0x40020000u
 #define DMA1_IFCR (DMA1_BASE + 0x04u)
 #define DMA1_CH2_BASE (DMA1_BASE + 0x1Cu)
@@ -108,7 +107,8 @@ static void spi_flash_hw_init_once(void)
 
     /* OEM-style GPIO config: PA5/PA7 (0x18), PA6 (0x48), PA4 (0x10). */
     spi_flash_gpio_configure_mask(GPIOA_BASE, 0x00A0u, 0x18u, 0x02u);
-    spi_flash_gpio_configure_mask(GPIOA_BASE, 0x0040u, 0x48u, 0x02u);
+    /* Pull-up input: extend must be 0 so CRL/CRH nibble stays 0x8 (input pull-up/down). */
+    spi_flash_gpio_configure_mask(GPIOA_BASE, 0x0040u, 0x48u, 0x00u);
     spi_flash_gpio_configure_mask(GPIOA_BASE, 0x0010u, 0x10u, 0x02u);
     mmio_write32(GPIO_BSRR(GPIOA_BASE), (1u << 4)); /* CS high */
 
@@ -180,7 +180,7 @@ static inline void spi_flash_cs_high(void)
 
 static uint8_t spi1_txrx_u8(uint8_t b)
 {
-    /* SR: RXNE bit0, TXE bit1 (matches OEM + Renode stub). */
+    /* SR: RXNE bit0, TXE bit1 (matches OEM + simulator stub). */
     for (uint32_t i = 0; i < 500u; ++i)
     {
         if (mmio_read32(SPI1_BASE + 0x08u) & 0x2u) /* TXE */
@@ -258,8 +258,7 @@ static void spi_flash_dma_to_lcd(uint32_t addr, uint32_t lcd_addr, uint16_t coun
     mmio_write32(DMA_CCR(DMA1_CH2_BASE), mmio_read32(DMA_CCR(DMA1_CH2_BASE)) | 1u);
 
     while (!g_spi_dma_rx_done)
-    {
-    }
+        ;
 
     /* Restore SPI config (8-bit, no RXONLY). */
     spi1_apply_cr1(0u);
@@ -410,7 +409,7 @@ void spi_flash_set_bootloader_mode_flag(void)
      * the sector; a single-byte program is enough when the byte is 0xFF/0xAA.
      */
     uint8_t cur = 0xFFu;
-    spi_flash_read(SPI_FLASH_BOOTMODE_ADDR, &cur, 1u);
+    spi_flash_read(SPI_FLASH_BOOTMODE_FLAG_ADDR, &cur, 1u);
     spi_flash_stage_mark(0xB201);
     if (cur == 0xAAu)
     {
@@ -419,11 +418,16 @@ void spi_flash_set_bootloader_mode_flag(void)
     }
     if ((cur & 0xAAu) != 0xAAu)
     {
-        /* Would require erase to set bits back to 1; skip to avoid wear. */
+        /*
+         * Byte contains 0->1 transitions relative to 0xAA.
+         * Fall back to read-modify-erase-write so recovery path remains writable.
+         */
+        const uint8_t flag = 0xAAu;
+        spi_flash_update_bytes(SPI_FLASH_BOOTMODE_FLAG_ADDR, &flag, 1u);
         spi_flash_stage_mark(0xB206);
         return;
     }
     const uint8_t flag = 0xAAu;
-    spi_flash_page_program(SPI_FLASH_BOOTMODE_ADDR, &flag, 1u);
+    spi_flash_page_program(SPI_FLASH_BOOTMODE_FLAG_ADDR, &flag, 1u);
     spi_flash_stage_mark(0xB202);
 }

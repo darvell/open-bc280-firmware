@@ -8,11 +8,13 @@
 #include "shengyi.h"
 #include "../control/control.h"
 #include "../power/power.h"
+#include "battery_soc.h"
 #include "app_data.h"
 #include "../config/config.h"
 #include "motor_isr.h"
 #include "../../drivers/uart.h"
 #include "../../platform/hw.h"
+#include "../util/bool_to_u8.h"
 
 extern volatile uint32_t g_ms;
 
@@ -103,7 +105,7 @@ void shengyi_notify_rx_opcode(uint8_t opcode)
 
 uint8_t shengyi_handshake_ok(void)
 {
-    return g_shengyi_handshake_ok ? 1u : 0u;
+    return bool_to_u8(g_shengyi_handshake_ok);
 }
 
 void shengyi_speed_update_target(uint16_t speed_dmph)
@@ -245,67 +247,24 @@ static void shengyi_oem_config_defaults(void)
     shengyi_apply_oem_limits();
 }
 
-static const uint16_t k_batt_pct_x100[13] = {
-    42000u, 10000u, 9000u, 7500u, 6000u, 4500u, 3692u,
-    3115u, 2000u, 1000u, 800u, 500u, 0u
-};
-
-static const uint16_t k_batt_curve_24_mv[13] = {
-    0u, 29000u, 27700u, 27000u, 26300u, 25600u, 25200u,
-    25000u, 24500u, 24200u, 23800u, 23100u, 21000u
-};
-
-static const uint16_t k_batt_curve_36_mv[13] = {
-    0u, 40800u, 39500u, 38500u, 37500u, 36500u, 36000u,
-    35600u, 35000u, 34500u, 34000u, 33000u, 31500u
-};
-
-static const uint16_t k_batt_curve_48_mv[13] = {
-    0u, 53800u, 51400u, 50100u, 48800u, 47500u, 46800u,
-    46300u, 45500u, 44900u, 44200u, 42900u, 42000u
-};
-
-static const uint16_t *shengyi_batt_curve_for_mv(uint32_t batt_mv)
+uint8_t shengyi_nominal_v(void)
 {
-    if (batt_mv >= 42000u)
-        return k_batt_curve_48_mv;
-    if (batt_mv >= 30000u)
-        return k_batt_curve_36_mv;
-    return k_batt_curve_24_mv;
+    uint8_t v = g_shengyi_cfg.n48;
+    return (v == 24u || v == 36u || v == 48u) ? v : 0u;
 }
 
 uint8_t shengyi_batt_soc_pct_from_dV(int16_t batt_dV)
 {
     if (batt_dV <= 0)
         return 0u;
-    uint32_t batt_mv = (uint32_t)batt_dV * 100u;
-    const uint16_t *curve = shengyi_batt_curve_for_mv(batt_mv);
-    uint8_t i = 0u;
-    for (; i < 12u; ++i) {
-        if (curve[i + 1u] <= batt_mv)
-            break;
-    }
-    if (i >= 12u)
-        return 0u;
-    if (i == 0u)
-        return 100u;
-    float v4 = ((float)k_batt_pct_x100[i] - (float)k_batt_pct_x100[i + 1u]) / 100.0f;
-    v4 /= (float)(curve[i] - curve[i + 1u]);
-    float v5 = ((float)k_batt_pct_x100[i + 1u] / 100.0f)
-             - (v4 * (float)curve[i + 1u])
-             + (v4 * (float)batt_mv);
-    if (v5 > 99.5f)
-        v5 = 100.0f;
-    if (v5 < 0.0f)
-        v5 = 0.0f;
-    return (uint8_t)v5;
+    uint32_t batt_mv = (uint32_t)batt_dV * 100u; /* 0.1V -> mV */
+    return battery_soc_pct_from_mv(batt_mv, shengyi_nominal_v());
 }
 
 static uint8_t shengyi_battery_low_flag(void)
 {
-    if (!(g_input_caps & INPUT_CAP_BATT_V))
-        return 0u;
-    return (shengyi_batt_soc_pct_from_dV(g_inputs.battery_dV) == 0u) ? 1u : 0u;
+    return bool_to_u8((g_input_caps & INPUT_CAP_BATT_V) &&
+                      shengyi_batt_soc_pct_from_dV(g_inputs.battery_dV) == 0u);
 }
 
 /* -------------------------------------------------------------
@@ -336,10 +295,10 @@ void shengyi_send_0x52_req(uint8_t assist_level_mapped,
 {
     motor_isr_queue_cmd(
         assist_level_mapped,
-        headlight_enabled ? 1u : 0u,
-        walk_assist_active ? 1u : 0u,
-        battery_low ? 1u : 0u,
-        speed_over_limit ? 1u : 0u);
+        bool_to_u8(headlight_enabled),
+        bool_to_u8(walk_assist_active),
+        bool_to_u8(battery_low),
+        bool_to_u8(speed_over_limit));
 }
 
 /* -------------------------------------------------------------
@@ -388,10 +347,10 @@ void shengyi_periodic_send_tick(void)
         return;
     uint8_t assist = shengyi_assist_level_mapped();
     uint8_t flags = shengyi_build_flags();
-    uint8_t headlight = (flags & SHENGYI_FLAG_LIGHT) ? 1u : 0u;
-    uint8_t battery_low = (flags & SHENGYI_FLAG_BATTLOW) ? 1u : 0u;
-    uint8_t walk = (flags & SHENGYI_FLAG_WALK) ? 1u : 0u;
-    uint8_t speed_over = (flags & SHENGYI_FLAG_SPEED) ? 1u : 0u;
+    uint8_t headlight = bool_to_u8((flags & SHENGYI_FLAG_LIGHT) != 0u);
+    uint8_t battery_low = bool_to_u8((flags & SHENGYI_FLAG_BATTLOW) != 0u);
+    uint8_t walk = bool_to_u8((flags & SHENGYI_FLAG_WALK) != 0u);
+    uint8_t speed_over = bool_to_u8((flags & SHENGYI_FLAG_SPEED) != 0u);
     shengyi_send_0x52_req(assist, headlight, walk, battery_low, speed_over);
     g_shengyi_last_assist = assist;
     g_shengyi_last_flags = flags;
@@ -476,6 +435,8 @@ uint8_t shengyi_assist_oem_lut(uint8_t max, uint8_t idx)
 uint8_t shengyi_assist_level_mapped(void)
 {
     uint8_t max = shengyi_assist_oem_max(g_vgears.count);
+    if (g_inputs.brake)
+        return 0u;
     uint8_t idx = g_active_vgear;
     if (idx == 0u)
         idx = 1u;
@@ -534,8 +495,8 @@ int shengyi_apply_config_c0(const uint8_t *payload, uint8_t len)
         g_shengyi_cfg.n10000 = (uint16_t)payload[22] * 1000u;
     if (payload[23] <= 0x0Au)
         g_shengyi_cfg.n3 = payload[23];
-    g_shengyi_cfg.n10_1 = payload[24] ? 1u : 0u;
-    g_shengyi_cfg.byte_e0f = payload[25] ? 1u : 0u;
+    g_shengyi_cfg.n10_1 = bool_to_u8(payload[24]);
+    g_shengyi_cfg.byte_e0f = bool_to_u8(payload[25]);
     g_shengyi_cfg.n2355 = (uint16_t)((uint16_t)payload[26] << 8) | payload[27];
     g_shengyi_cfg.n3_2 = payload[28];
     g_shengyi_cfg.n2_0 = payload[29];
@@ -590,8 +551,8 @@ size_t shengyi_build_frame_0xC3(uint8_t *out, size_t cap)
     payload[16] = g_shengyi_cfg.byte_e21;
     payload[17] = (uint8_t)(g_shengyi_cfg.n10000 / 1000u);
     payload[18] = g_shengyi_cfg.n3;
-    payload[19] = g_shengyi_cfg.n10_1 ? 1u : 0u;
-    payload[20] = g_shengyi_cfg.byte_e0f ? 1u : 0u;
+    payload[19] = bool_to_u8(g_shengyi_cfg.n10_1);
+    payload[20] = bool_to_u8(g_shengyi_cfg.byte_e0f);
     payload[21] = (uint8_t)(g_shengyi_cfg.n2355 >> 8);
     payload[22] = (uint8_t)(g_shengyi_cfg.n2355 & 0xFFu);
     payload[23] = g_shengyi_cfg.n3_2;

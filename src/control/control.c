@@ -12,6 +12,7 @@
 #include "storage/logs.h"
 #include "config/config.h"
 #include "input/input.h"
+#include "motor/motor_cmd.h"
 
 /* Global config instance (defined in main.c) */
 /* Global state instances */
@@ -217,6 +218,8 @@ static cruise_resume_reason_t cruise_resume_block_reason(void)
 {
     if (g_inputs.brake)
         return CRUISE_RESUME_BLOCK_BRAKE;
+    if (motor_cmd_link_fault_active() || g_motor.err)
+        return CRUISE_RESUME_BLOCK_FAULT;
 
     uint16_t speed = g_inputs.speed_dmph;
     uint16_t set_speed = g_cruise.set_speed_dmph;

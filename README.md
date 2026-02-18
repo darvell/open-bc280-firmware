@@ -3,7 +3,6 @@
 > Safety / status: Experimental reverse-engineering + firmware project.
 >
 > Do **not** flash this onto a bike you ride, and do **not** rely on it for safety-critical behavior.
-> Prefer host simulation and Renode until you have a controlled recovery path.
 
 Attempted open-source firmware for the **BC280** e-bike display used on bikes with **Shengyi DWG22**
 motor controllers (Aventon-focused, but intended to be adaptable to other BC280-class variants).
@@ -18,7 +17,6 @@ The BC280 ecosystem typically ships as a vendor bootloader + application image. 
   at the standard application base address.
 - Host-side tests and a deterministic “fake bike” simulator (UART/BLE/sensor shims) to iterate quickly
   without touching hardware.
-- A Renode harness used as an integration backstop for MMIO-level behavior.
 - OEM binary artifacts under `firmware/` kept for diffing/regression reference only.
 
 The open firmware must remain self-contained and must **never** replace or take over the OEM bootloader.
@@ -67,8 +65,6 @@ Safety invariants and boot constraints are documented in:
 
 ## Repository layout
 
-- `scripts/` — build helpers, preflight checker, BLE OTA uploader, Renode runners
-- `renode/` — Renode platform/harness files (plus an optional local `Renode.app` bundle, ignored by git)
 - `firmware/` — OEM and reference binaries (for diffing/regression only; the open firmware does not link against them)
 - `docs/chipset/` — MCU reference notes / datasheets
 - `docs/firmware/` — safety/requirements/specs and UI screenshots
@@ -77,7 +73,6 @@ Safety invariants and boot constraints are documented in:
 
 ## Prerequisites
 
-- Python 3 (for helper scripts and Renode automation)
 - Meson + Ninja (host builds and cross builds)
 - For cross-compiling the firmware image: an ARM embedded toolchain as configured by
   `cross/arm-none-eabi-clang.txt`
@@ -120,18 +115,6 @@ any image before attempting an update:
 python3 scripts/preflight_open_firmware.py --image build/open_firmware.bin
 ```
 
-## Emulation (Renode)
-
-Renode is used as an integration backstop (MMIO correctness, boot flow, UART wiring), not as the
-primary dev loop.
-
-```bash
-./scripts/renode_smoke.sh
-```
-
-There are also end-to-end scripts (OEM → bootloader → open-fw → bootflag → power-cycle) under
-`scripts/renode/`.
-
 ## OTA update (BLE)
 
 This repo includes a host-side BLE updater script intended to drive the OEM bootloader’s update path.
@@ -139,9 +122,6 @@ This repo includes a host-side BLE updater script intended to drive the OEM boot
 ```bash
 python3 scripts/ble_push_open_firmware.py <BLE_MAC_ADDRESS>
 ```
-
-This is experimental and easy to brick hardware with. Prefer Renode + host simulation until you have
-a controlled recovery path.
 
 ## Notes on OEM artifacts
 

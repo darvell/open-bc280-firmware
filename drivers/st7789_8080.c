@@ -114,10 +114,10 @@ void st7789_8080_init_oem(const st7789_8080_bus_t *bus)
 {
     const uint8_t madctl = 0x00u; /* RGB order, no row/column swap. */
     const uint8_t colmod = 0x05u; /* 16-bit (RGB565). */
-    const uint8_t porctrl[] = {0x0Cu, 0x0Cu, 0x00u, 0x33u, 0x33u}; /* BPA/FPA + idle porch. */
     const uint8_t gctrl = 0x35u; /* Gate voltage (VGH/VGL). */
     const uint8_t vcoms = 0x2Au; /* VCOMS level. */
     const uint8_t lcmctrl = 0x2Cu; /* LCM control overrides. */
+    const uint8_t porctrl[] = {0x0Cu, 0x0Cu, 0x00u, 0x33u, 0x33u};
     const uint8_t vdvvrhen = 0x01u; /* Enable VDV/VRH command values. */
     const uint8_t vrhs = 0x05u; /* VRH (VAP/GVDD). */
     const uint8_t vdvs = 0x20u; /* VDV. */
@@ -132,7 +132,7 @@ void st7789_8080_init_oem(const st7789_8080_bus_t *bus)
                                0x2Eu, 0x2Fu};
 
     st7789_write_cmd(bus, ST7789_CMD_SLPOUT);
-    st7789_delay_ms(bus, 120u);  /* ST7789 requires 120ms after SLPOUT */
+    st7789_delay_ms(bus, 2u);
 
     st7789_write_cmd_data(bus, ST7789_CMD_MADCTL, &madctl, 1u);
     st7789_write_cmd_data(bus, ST7789_CMD_COLMOD, &colmod, 1u);
@@ -143,11 +143,11 @@ void st7789_8080_init_oem(const st7789_8080_bus_t *bus)
 
     st7789_write_cmd(bus, ST7789_CMD_CASET);
     st7789_write_u16be(bus, 0u);
-    st7789_write_u16be(bus, 0x00EFu);
+    st7789_write_u16be(bus, 0x00EFu); /* 0..239 */
 
     st7789_write_cmd(bus, ST7789_CMD_RASET);
     st7789_write_u16be(bus, 0u);
-    st7789_write_u16be(bus, 0x013Fu);  /* 319 for 320-row display */
+    st7789_write_u16be(bus, 0x00EFu); /* 0..239 */
 
     st7789_write_cmd_data(bus, ST7789_CMD_PORCTRL, porctrl, (uint8_t)sizeof(porctrl));
     st7789_write_cmd_data(bus, ST7789_CMD_GCTRL, &gctrl, 1u);

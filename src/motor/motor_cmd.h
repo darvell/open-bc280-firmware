@@ -133,6 +133,14 @@ void motor_cmd_get_status(motor_status_cache_t *status);
 bool motor_cmd_is_alive(uint32_t now_ms);
 
 /*
+ * Link fault status latched by timeout handling.
+ *
+ * Returns:
+ *   true when motor communication is currently considered faulted/stale.
+ */
+bool motor_cmd_link_fault_active(void);
+
+/*
  * Get command subsystem statistics
  */
 typedef struct {

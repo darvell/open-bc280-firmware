@@ -126,4 +126,3 @@ Payload layout (LEN=22):
 ## 6. References
 
 - Full command list and extended structs: `docs/firmware/README.md` (Debug protocol section).
-- Telemetry log parsing helper: `scripts/renode/parse_uart_log.py`.

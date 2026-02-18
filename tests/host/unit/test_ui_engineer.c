@@ -438,7 +438,7 @@ static int test_engineer_panel_hashes(void)
     now += UI_TICK_MS;
     if (!ui_tick(&ui, &m, now, &trace))
         return 0;
-    const uint32_t want_raw = 0x7F001FD4u;
+    const uint32_t want_raw = 0xE4A4D109u;
     if (trace.hash != want_raw)
     {
         fprintf(stderr, "ENGINEER RAW HASH mismatch got=%u want=%u\n", trace.hash, want_raw);
@@ -449,7 +449,7 @@ static int test_engineer_panel_hashes(void)
     now += UI_TICK_MS;
     if (!ui_tick(&ui, &m, now, &trace))
         return 0;
-    const uint32_t want_power = 0x50C5531Cu;
+    const uint32_t want_power = 0xD25F3390u;
     if (trace.hash != want_power)
     {
         fprintf(stderr, "ENGINEER POWER HASH mismatch got=%u want=%u\n", trace.hash, want_power);

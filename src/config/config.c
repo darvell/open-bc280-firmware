@@ -15,6 +15,7 @@
 #include "util/byteorder.h"
 #include "util/crc32.h"
 #include "platform/time.h"
+#include "src/app.h"
 
 #define PIN_ATTEMPT_FLAG_OK    0x01u
 #define PIN_ATTEMPT_FLAG_BAD   0x02u
@@ -498,7 +499,7 @@ uint8_t config_commit_staged(const uint8_t *p, uint8_t len)
     g_config_staged_valid = 0;
 
     if (len >= 1 && p && p[0])
-        g_request_soft_reboot = 2; /* reboot to app */
+        g_request_soft_reboot = REBOOT_REQUEST_APP; /* reboot to app */
 
     return 0;
 }

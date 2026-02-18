@@ -3,8 +3,6 @@
 #include "platform/hw.h"
 #include "platform/mmio.h"
 
-#define LCD_DATA_ADDR 0x60020000u
-
 void platform_lcd_dma_write_u16(const uint16_t *pixels, uint32_t count)
 {
     if (!pixels || count == 0u)

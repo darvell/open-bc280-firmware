@@ -1,53 +1,89 @@
-/*
- * Application Orchestration Layer - Implementation
- *
- * This module extracts the main initialization and loop logic
- * from main.c into well-defined phases. The actual business logic
- * remains in main.c for now - this is just the orchestration layer.
- */
-
 #include "app.h"
 #include <stdint.h>
-#include <stdbool.h>
 
-/* Include canonical type definitions instead of duplicating */
-#include "ui.h"                    /* ui_state_t, ui_model_t, ui_trace_t, UI_TICK_MS */
-#include "ui_state.h"              /* UI navigation/runtime globals */
-#include "app_state.h"             /* main loop shared state */
-#include "src/motor/app_data.h"    /* motor_state_t, debug_inputs_t, debug_outputs_t */
-#include "src/power/power.h"       /* power_policy_state_t */
-#include "src/control/control.h"   /* cruise_state_t, regen_state_t, drive_state_t, boost_state_t, vgear_table_t */
-#include "src/bus/bus.h"           /* bus_ui_entry_t, BUS_UI_VIEW_MAX */
-#include "src/telemetry/trip.h"    /* trip_acc_t, trip_snapshot_t */
-#include "src/telemetry/telemetry.h" /* g_graph_window_s */
-#include "src/config/config.h"     /* config_t */
-#include "src/profiles/profiles.h" /* g_active_profile_id */
-#include "src/comm/comm.h"         /* poll_uart_rx_ports, send_state_frame_bin, print_status */
-#include "src/input/input.h"       /* buttons_tick */
-#include "src/motor/shengyi.h"   /* shengyi_periodic_send_tick */
-#include "src/motor/motor_isr.h" /* motor_isr_get_stats */
+#include "ui.h"
+#include "ui_state.h"
+#include "app_state.h"
+#include "src/motor/app_data.h"
+#include "src/power/power.h"
+#include "src/control/control.h"
+#include "src/bus/bus.h"
+#include "src/telemetry/trip.h"
+#include "src/telemetry/telemetry.h"
+#include "src/config/config.h"
+#include "src/profiles/profiles.h"
+#include "src/comm/comm.h"
+#include "src/input/input.h"
+#include "src/motor/shengyi.h"
+#include "src/motor/motor_isr.h"
 #include "src/motor/motor_cmd.h"
+#include "src/motor/motor_link.h"
+#include "src/power/battery_monitor.h"
 #include "src/kernel/event_queue.h"
-#include "src/system_control.h"    /* reboot_to_bootloader, reboot_to_app, watchdog_tick */
-#include "storage/logs.h"          /* event_log_meta_t */
-#include "storage/boot_stage.h"    /* boot_stage_log */
-#include "platform/time.h"         /* platform_time_poll_1ms */
-#include "platform/cpu.h"          /* wfi */
-#include "platform/hw.h"           /* UART1_BASE */
-#include "drivers/uart.h"          /* uart_write */
-#include "drivers/spi_flash.h"     /* spi_flash_set_bootloader_mode_flag */
+#include "src/system_control.h"
+#include "storage/logs.h"
+#include "storage/boot_stage.h"
+#include "boot_log.h"
+#include "platform/time.h"
+#include "platform/cpu.h"
+#include "platform/hw.h"
+#include "drivers/uart.h"
 
-/* Alert acknowledgement timeout (ms) */
-#define UI_ALERT_ACK_MS 5000u
-
-/*
- * Extern declarations for globals defined in main.c
- * These are the canonical instances; types come from headers above.
- */
 extern volatile uint32_t g_ms;
 extern uint32_t g_last_profile_switch_ms;
 extern uint8_t g_last_brake_state;
+extern event_queue_t g_motor_events;
 void recompute_outputs(void);
+
+typedef enum
+{
+    APP_PROFILE_SHORTCUT_MASK = 0x03u,
+    APP_PROFILE_SWITCH_DEBOUNCE_MS = 100u,
+    APP_CONFIG_CHANGE_MAX_SPEED_DMPH = 10u, /* 1.0 mph */
+    APP_GRAPH_CHANNEL_COUNT = 4u,
+    APP_GRAPH_WINDOW_COUNT = 3u,
+    APP_TUNE_CURRENT_STEP_DA = 10u,
+    APP_TUNE_CURRENT_MIN_DA = 50u,
+    APP_TUNE_RAMP_STEP_WPS = 50u,
+    APP_TUNE_BOOST_STEP_MS = 1000u,
+} app_constant_t;
+
+static inline uint8_t bool_to_u8(uint8_t condition)
+{
+    return condition ? 1u : 0u;
+}
+
+static inline uint8_t mask_to_u8(uint8_t source, uint8_t mask)
+{
+    return (uint8_t)((source & mask) ? 1u : 0u);
+}
+
+static inline uint8_t toggle_u8(uint8_t value)
+{
+    return (uint8_t)(value ? 0u : 1u);
+}
+
+static inline int32_t clamp_i32(int32_t value, int32_t min, int32_t max)
+{
+    if (value < min)
+        return min;
+    if (value > max)
+        return max;
+    return value;
+}
+
+static uint16_t app_config_change_speed_dmph(void)
+{
+    uint16_t spd = g_inputs.speed_dmph;
+    if (g_motor.speed_dmph > spd)
+        spd = g_motor.speed_dmph;
+    return spd;
+}
+
+static uint8_t app_config_change_allowed(void)
+{
+    return app_config_change_speed_dmph() <= APP_CONFIG_CHANGE_MAX_SPEED_DMPH;
+}
 
 static void apply_gear_buttons(void)
 {
@@ -67,23 +103,16 @@ static void apply_gear_buttons(void)
         shengyi_request_update(0u);
 }
 
-/* UI and main-loop state from ui_state.h + app_state.h */
-
-/* HIST_GEAR_BINS from trip.h */
-
-/*
- * ============================================================================
- * Application Functions - Implementation
- * ============================================================================
- */
-
 void app_process_time(void)
 {
     platform_time_poll_1ms();
+    watchdog_feed_runtime();
 
-    if (g_request_soft_reboot == 1) {
+    if (g_request_soft_reboot == REBOOT_REQUEST_BOOTLOADER) {
         reboot_to_bootloader();
-    } else if (g_request_soft_reboot == 2) {
+        return;
+    }
+    if (g_request_soft_reboot == REBOOT_REQUEST_APP) {
         reboot_to_app();
     }
 }
@@ -98,13 +127,13 @@ void app_process_events(void)
 {
     poll_uart_rx_ports();
     buttons_tick();
-    extern event_queue_t g_motor_events;
     event_queue_drain(&g_motor_events, handle_motor_event, NULL);
 }
 
 void app_apply_inputs(void)
 {
     graph_on_input_all();
+    uint8_t cfg_change_allowed = app_config_change_allowed();
 
     if (g_ui_page == UI_PAGE_SETTINGS)
     {
@@ -126,18 +155,26 @@ void app_apply_inputs(void)
                 wizard_start();
                 break;
             case UI_SETTINGS_ITEM_UNITS:
-                g_config_active.units = g_config_active.units ? 0u : 1u;
+                if (!cfg_change_allowed)
+                    break;
+                g_config_active.units = toggle_u8(g_config_active.units);
                 config_persist_active();
                 break;
             case UI_SETTINGS_ITEM_BUTTON_MAP:
+                if (!cfg_change_allowed)
+                    break;
                 g_config_active.button_map = (uint8_t)((g_config_active.button_map + 1u) % (BUTTON_MAP_MAX + 1u));
                 config_persist_active();
                 break;
             case UI_SETTINGS_ITEM_THEME:
+                if (!cfg_change_allowed)
+                    break;
                 g_config_active.theme = (uint8_t)((g_config_active.theme + 1u) % UI_THEME_COUNT);
                 config_persist_active();
                 break;
             case UI_SETTINGS_ITEM_MODE:
+                if (!cfg_change_allowed)
+                    break;
                 g_config_active.mode = (g_config_active.mode == MODE_PRIVATE) ? MODE_STREET : MODE_PRIVATE;
                 config_persist_active();
                 break;
@@ -152,23 +189,23 @@ void app_apply_inputs(void)
     if (g_ui_page == UI_PAGE_GRAPHS)
     {
         if (g_button_short_press & UI_PAGE_BUTTON_RAW)
-            g_ui_graph_channel = (uint8_t)((g_ui_graph_channel + 1u) % 4u);
+            g_ui_graph_channel = (uint8_t)((g_ui_graph_channel + 1u) % APP_GRAPH_CHANNEL_COUNT);
         if (g_button_short_press & BUTTON_GEAR_UP_MASK)
-            g_ui_graph_window_idx = (uint8_t)((g_ui_graph_window_idx + 1u) % 3u);
+            g_ui_graph_window_idx = (uint8_t)((g_ui_graph_window_idx + 1u) % APP_GRAPH_WINDOW_COUNT);
         if (g_button_short_press & BUTTON_GEAR_DOWN_MASK)
-            g_ui_graph_window_idx = (uint8_t)((g_ui_graph_window_idx + 2u) % 3u);
+            g_ui_graph_window_idx = (uint8_t)((g_ui_graph_window_idx + 2u) % APP_GRAPH_WINDOW_COUNT);
     }
 
     if (g_ui_page == UI_PAGE_PROFILES)
     {
         uint8_t press = g_button_short_press;
         uint8_t long_press = g_button_long_press;
-        uint8_t confirm = (press & UI_PAGE_BUTTON_RAW) ? 1u : 0u;
-        uint8_t up = (press & BUTTON_GEAR_UP_MASK) ? 1u : 0u;
-        uint8_t down = (press & BUTTON_GEAR_DOWN_MASK) ? 1u : 0u;
-        uint8_t long_up = (long_press & BUTTON_GEAR_UP_MASK) ? 1u : 0u;
-        uint8_t long_down = (long_press & BUTTON_GEAR_DOWN_MASK) ? 1u : 0u;
-        uint8_t long_cruise = (long_press & UI_PAGE_BUTTON_RAW) ? 1u : 0u;
+        uint8_t confirm = mask_to_u8(press, UI_PAGE_BUTTON_RAW);
+        uint8_t up = mask_to_u8(press, BUTTON_GEAR_UP_MASK);
+        uint8_t down = mask_to_u8(press, BUTTON_GEAR_DOWN_MASK);
+        uint8_t long_up = mask_to_u8(long_press, BUTTON_GEAR_UP_MASK);
+        uint8_t long_down = mask_to_u8(long_press, BUTTON_GEAR_DOWN_MASK);
+        uint8_t long_cruise = mask_to_u8(long_press, UI_PAGE_BUTTON_RAW);
 
         if (g_config_active.flags & CFG_FLAG_QA_PROFILE)
             long_up = 0u;
@@ -194,7 +231,7 @@ void app_apply_inputs(void)
             if (down)
                 g_ui_profile_select = (uint8_t)((g_ui_profile_select + 1u) % PROFILE_COUNT);
             if (confirm)
-                set_active_profile(g_ui_profile_select, 1);
+                set_active_profile(g_ui_profile_select, cfg_change_allowed ? 1 : 0);
             if (long_cruise)
                 g_ui_profile_focus = UI_PROFILE_FOCUS_GEAR_MIN;
         }
@@ -250,37 +287,32 @@ void app_apply_inputs(void)
         uint8_t press = g_button_short_press;
         if (press & UI_PAGE_BUTTON_RAW)
             g_ui_tune_index = (uint8_t)((g_ui_tune_index + 1u) % 3u);
-        if (press & (BUTTON_GEAR_UP_MASK | BUTTON_GEAR_DOWN_MASK))
+        if (cfg_change_allowed && (press & (BUTTON_GEAR_UP_MASK | BUTTON_GEAR_DOWN_MASK)))
         {
             int dir = (press & BUTTON_GEAR_UP_MASK) ? 1 : -1;
             if (g_ui_tune_index == 0u)
             {
-                int32_t v = (int32_t)g_config_active.cap_current_dA + dir * 10;
                 int32_t max_current = (g_config_active.mode == MODE_STREET) ? (int32_t)STREET_MAX_CURRENT_DA : 300;
-                if (v < 50)
-                    v = 50;
-                if (v > max_current)
-                    v = max_current;
+                int32_t v = clamp_i32(
+                    (int32_t)g_config_active.cap_current_dA + (int32_t)dir * (int32_t)APP_TUNE_CURRENT_STEP_DA,
+                    APP_TUNE_CURRENT_MIN_DA,
+                    max_current);
                 g_config_active.cap_current_dA = (uint16_t)v;
             }
             else if (g_ui_tune_index == 1u)
             {
-                int32_t v = (int32_t)g_config_active.soft_start_ramp_wps + dir * 50;
-                if (v <= 0)
-                    v = 0;
-                else if (v < (int32_t)SOFT_START_RAMP_MIN_WPS)
-                    v = SOFT_START_RAMP_MIN_WPS;
-                if (v > (int32_t)SOFT_START_RAMP_MAX_WPS)
-                    v = SOFT_START_RAMP_MAX_WPS;
+                int32_t v = clamp_i32(
+                    (int32_t)g_config_active.soft_start_ramp_wps + (int32_t)dir * (int32_t)APP_TUNE_RAMP_STEP_WPS,
+                    (int32_t)SOFT_START_RAMP_MIN_WPS,
+                    (int32_t)SOFT_START_RAMP_MAX_WPS);
                 g_config_active.soft_start_ramp_wps = (uint16_t)v;
             }
             else
             {
-                int32_t v = (int32_t)g_config_active.boost_budget_ms + dir * 1000;
-                if (v < 0)
-                    v = 0;
-                if (v > (int32_t)BOOST_BUDGET_MAX_MS)
-                    v = BOOST_BUDGET_MAX_MS;
+                int32_t v = clamp_i32(
+                    (int32_t)g_config_active.boost_budget_ms + (int32_t)dir * (int32_t)APP_TUNE_BOOST_STEP_MS,
+                    0,
+                    (int32_t)BOOST_BUDGET_MAX_MS);
                 g_config_active.boost_budget_ms = (uint16_t)v;
             }
             config_persist_active();
@@ -291,7 +323,7 @@ void app_apply_inputs(void)
     {
         if (g_button_short_press & UI_PAGE_BUTTON_RAW)
         {
-            uint8_t enable = bus_capture_get_enabled() ? 0u : 1u;
+            uint8_t enable = toggle_u8(bus_capture_get_enabled());
             bus_capture_set_enabled(enable, enable);
         }
     }
@@ -323,10 +355,10 @@ void app_apply_inputs(void)
         bus_ui_entry_t last_entry;
         uint8_t have_last = bus_ui_get_last(&last_entry);
 
-        uint8_t changed_only = state.changed_only ? 1u : 0u;
-        uint8_t diff_enabled = state.diff_enabled ? 1u : 0u;
-        uint8_t filter_id = state.filter_id ? 1u : 0u;
-        uint8_t filter_opcode = state.filter_opcode ? 1u : 0u;
+        uint8_t changed_only = bool_to_u8(state.changed_only);
+        uint8_t diff_enabled = bool_to_u8(state.diff_enabled);
+        uint8_t filter_id = bool_to_u8(state.filter_id);
+        uint8_t filter_opcode = bool_to_u8(state.filter_opcode);
         uint8_t filter_bus_id = state.filter_bus_id;
         uint8_t filter_opcode_val = state.filter_opcode_val;
         uint8_t apply_reset = 0u;
@@ -342,19 +374,19 @@ void app_apply_inputs(void)
                 g_ui_bus_offset++;
         }
         if (g_button_short_press & WALK_BUTTON_MASK)
-            changed_only = changed_only ? 0u : 1u;
+            changed_only = toggle_u8(changed_only);
         if (g_button_short_press & UI_PAGE_BUTTON_RAW)
-            diff_enabled = diff_enabled ? 0u : 1u;
+            diff_enabled = toggle_u8(diff_enabled);
         if (g_button_long_press & BUTTON_GEAR_UP_MASK)
         {
-            filter_id = filter_id ? 0u : 1u;
+            filter_id = toggle_u8(filter_id);
             if (have_last)
                 filter_bus_id = last_entry.bus_id;
             apply_reset = 1u;
         }
         if (g_button_long_press & BUTTON_GEAR_DOWN_MASK)
         {
-            filter_opcode = filter_opcode ? 0u : 1u;
+            filter_opcode = toggle_u8(filter_opcode);
             if (have_last)
                 filter_opcode_val = last_entry.len ? last_entry.data[0] : 0u;
             apply_reset = 1u;
@@ -422,15 +454,15 @@ void app_apply_inputs(void)
     }
 
     /* Track brake edge for logging after outputs are updated. */
-    g_brake_edge = (g_inputs.brake && !g_last_brake_state) ? 1u : 0u;
+    g_brake_edge = bool_to_u8(g_inputs.brake && !g_last_brake_state);
 
     /* Profile quick-switch via buttons (low 2 bits). */
-    uint8_t requested_profile = (uint8_t)(g_inputs.buttons & 0x03u);
+    uint8_t requested_profile = (uint8_t)(g_inputs.buttons & APP_PROFILE_SHORTCUT_MASK);
     if (requested_profile < PROFILE_COUNT && requested_profile != g_active_profile_id)
     {
         /* debounce ~100 ms to avoid chatter while remaining quick (<300 ms) */
-        if (g_last_profile_switch_ms == 0u || (g_ms - g_last_profile_switch_ms) > 100u)
-            set_active_profile(requested_profile, 1);
+        if (g_last_profile_switch_ms == 0u || (g_ms - g_last_profile_switch_ms) > APP_PROFILE_SWITCH_DEBOUNCE_MS)
+            set_active_profile(requested_profile, cfg_change_allowed ? 1 : 0);
     }
 
     /* Virtual gear up/down: bit4=up, bit5=down (edge-trigger). */
@@ -443,7 +475,7 @@ void app_apply_inputs(void)
     /* Log brake activation after outputs are zeroed so snapshots reflect the cancel. */
     if (g_brake_edge)
         event_log_append(EVT_BRAKE, 0);
-    g_last_brake_state = g_inputs.brake ? 1u : 0u;
+    g_last_brake_state = bool_to_u8(g_inputs.brake);
 
     trip_update(g_inputs.speed_dmph, g_inputs.power_w, g_outputs.assist_mode,
                 g_outputs.virtual_gear, g_outputs.profile_id);
@@ -455,6 +487,13 @@ void app_apply_inputs(void)
 
 void app_process_periodic(void)
 {
+    system_control_key_sequencer_tick(g_ms,
+                                      bool_to_u8(motor_cmd_link_fault_active()),
+                                      g_request_soft_reboot);
+
+    /* OEM-like battery voltage monitoring (ADC1/PA0) */
+    battery_monitor_tick(g_ms);
+
     if ((g_ms - g_last_print) >= 1000u) {
         g_last_print = g_ms;
         print_status();
@@ -468,7 +507,7 @@ void app_process_periodic(void)
     stream_log_tick();
     graph_tick();
     bus_replay_tick();
-    shengyi_periodic_send_tick();
+    motor_link_periodic_send_tick();
     g_brake_edge = 0;
 }
 
@@ -530,7 +569,7 @@ void app_update_ui(void)
     g_ui_model.range_confidence = g_range_confidence;
     g_ui_model.cruise_resume_available = g_cruise.resume_available;
     g_ui_model.cruise_resume_reason = g_cruise.resume_block_reason;
-    g_ui_model.regen_supported = regen_capable() ? 1u : 0u;
+    g_ui_model.regen_supported = bool_to_u8(regen_capable());
     g_ui_model.regen_level = g_regen.level;
     g_ui_model.regen_brake_level = g_regen.brake_level;
     g_ui_model.regen_cmd_power_w = g_regen.cmd_power_w;
@@ -541,13 +580,13 @@ void app_update_ui(void)
     g_ui_model.link_timeouts = (link_stats.timeouts > 0xFFFFu) ? 0xFFFFu : (uint16_t)link_stats.timeouts;
     g_ui_model.link_rx_errors = (link_stats.rx_errors > 0xFFFFu) ? 0xFFFFu : (uint16_t)link_stats.rx_errors;
     g_ui_model.settings_index = g_ui_settings_index;
-    g_ui_model.focus_metric = (g_config_active.button_flags & 0x01) ? 1u : 0u;
+    g_ui_model.focus_metric = bool_to_u8(g_config_active.button_flags & BUTTON_FLAG_LOCK_ENABLE);
     g_ui_model.button_map = g_config_active.button_map;
     g_ui_model.pin_code = g_config_active.pin_code;
     bus_ui_state_t bus_state;
     bus_ui_get_state(&bus_state);
 
-    g_ui_model.capture_enabled = bus_capture_get_enabled() ? 1u : 0u;
+    g_ui_model.capture_enabled = bool_to_u8(bus_capture_get_enabled());
     g_ui_model.capture_count = bus_capture_get_count();
     g_ui_model.alert_ack_active = g_alert_ack_active;
     g_ui_model.alert_count = (g_event_meta.count > 0xFFFFu) ? 0xFFFFu : (uint16_t)g_event_meta.count;
@@ -594,11 +633,11 @@ void app_update_ui(void)
     g_ui_model.graph_channel = g_ui_graph_channel;
     g_ui_model.graph_window_s = (uint8_t)g_graph_window_s[g_ui_graph_window_idx];
     g_ui_model.graph_sample_hz = (uint8_t)(1000u / UI_TICK_MS);
-    g_ui_model.bus_diff = bus_state.diff_enabled ? 1u : 0u;
-    g_ui_model.bus_changed_only = bus_state.changed_only ? 1u : 0u;
+    g_ui_model.bus_diff = bool_to_u8(bus_state.diff_enabled);
+    g_ui_model.bus_changed_only = bool_to_u8(bus_state.changed_only);
     g_ui_model.bus_entries = 0u;
-    g_ui_model.bus_filter_id_active = bus_state.filter_id ? 1u : 0u;
-    g_ui_model.bus_filter_opcode_active = bus_state.filter_opcode ? 1u : 0u;
+    g_ui_model.bus_filter_id_active = bool_to_u8(bus_state.filter_id);
+    g_ui_model.bus_filter_opcode_active = bool_to_u8(bus_state.filter_opcode);
     g_ui_model.bus_filter_id = bus_state.filter_bus_id;
     g_ui_model.bus_filter_opcode = bus_state.filter_opcode_val;
 
@@ -644,13 +683,13 @@ void app_update_ui(void)
 
 void app_housekeeping(void)
 {
-    watchdog_tick();
     wfi();
 }
 
 void app_main_loop(void)
 {
     boot_stage_log(0xB020);
+    boot_log_stage(0xB020);
     while (1) {
         app_process_time();
         app_process_events();

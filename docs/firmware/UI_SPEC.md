@@ -327,7 +327,6 @@ Use a slow, low-cost animated ring (4–6 steps) to show active charge.
 
 ---
 
-## Make it testable in Renode (without a real LCD)
 
 ### Golden rule
 Every screen must have a **deterministic trace** mode that proves it rendered the

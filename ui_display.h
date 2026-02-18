@@ -6,7 +6,7 @@
 #endif
 
 #ifndef DISP_H
-#define DISP_H 320u
+#define DISP_H 240u
 #endif
 
 #endif

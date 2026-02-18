@@ -9,7 +9,6 @@ This document defines a **fixed-function** (“no scripting”) control policy t
 It is written to fit BC280-class constraints:
 - **96 KiB default SRAM** target (extendable to 224 KiB), no malloc required,
 - **no floating point required** (fixed-point throughout),
-- **Renode-testable** (every limiter produces a reason code + observable state).
 
 This is a *policy* layer; it does not assume a particular motor controller protocol.
 It only assumes we can compute/update a small set of telemetry signals.
@@ -289,7 +288,6 @@ Use simple saturating math and bounded filters.
 
 ---
 
-## 9) Renode testing strategy (required)
 
 For each governor, tests must:
 1) set inputs (V/I/speed/etc.) via debug protocol injection,

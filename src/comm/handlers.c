@@ -5,7 +5,6 @@
 #include <stdint.h>
 
 #include "app_data.h"
-#include "app_state.h"
 #include "ui.h"
 #include "ui_state.h"
 #include "ble_hacker.h"
@@ -20,8 +19,12 @@
 #include "src/system_control.h"
 #include "app_state.h"
 #include "src/motor/shengyi.h"
+#include "src/motor/motor_isr.h"
+#include "src/motor/motor_link.h"
 #include "platform/mmio.h"
 #include "platform/time.h"
+#include "src/boot_phase.h"
+#include "src/boot_monitor.h"
 #include "drivers/spi_flash.h"
 #include "storage/layout.h"
 #include "storage/logs.h"
@@ -29,9 +32,84 @@
 #include "storage/crash_dump.h"
 #include "util/byteorder.h"
 #include "src/core/math_util.h"
+#include "platform/hw.h"
+
+/* AT32 SPIM 1MiB/16MB window when memory-mapped access is enabled. */
+#define SPIM_FLASH_MAP_BASE 0x08400000u
+#define SPIM_FLASH_MAP_LIMIT (SPIM_FLASH_MAP_BASE + 0x01000000u)
+#define SRAM_EXEC_ADDR_MASK  0x2FFE0000u
+#define SRAM_EXEC_ADDR_BASE  0x20000000u
+
+enum {
+    CMD_STATUS_OK = 0x00u,
+    CMD_STATUS_BAD = 0xFEu,
+    CMD_STATUS_BAD_PAYLOAD = 0xFDu,
+    CMD_STATUS_BAD_ARG = 0xFBu,
+    CMD_STATUS_BLOCKED_MOVING = 0xFCu,
+};
+
+typedef enum {
+    CMD_ID_PING = 0x01u,
+    CMD_ID_READ32 = 0x02u,
+    CMD_ID_WRITE32 = 0x03u,
+    CMD_ID_READ_MEM = 0x04u,
+    CMD_ID_WRITE_MEM = 0x05u,
+    CMD_ID_EXEC = 0x06u,
+    CMD_ID_UPLOAD_EXEC = 0x07u,
+    CMD_ID_READ_FLASH = 0x08u,
+    CMD_ID_MONITOR = 0x09u,
+    CMD_ID_STATE_DUMP = 0x0Au,
+    CMD_ID_SET_BOOTLOADER_FLAG = 0x0Bu,
+    CMD_ID_SET_STATE = 0x0Cu,
+    CMD_ID_SET_STREAM = 0x0Du,
+    CMD_ID_REBOOT_BOOTLOADER = 0x0Eu,
+    CMD_ID_SET_DEBUG_OUTPUT = 0x0Fu,
+    CMD_ID_SPEED_RB_SUMMARY = 0x20u,
+    CMD_ID_DEBUG_STATE_V2 = 0x21u,
+    CMD_ID_GRAPH_SUMMARY = 0x22u,
+    CMD_ID_GRAPH_CONTROL = 0x23u,
+    CMD_ID_MOTOR_UART2_RAW_TX = 0x24u,
+    CMD_ID_MOTOR_LAST_FRAME = 0x25u,
+    CMD_ID_MOTOR_PROTO_SET = 0x26u,
+    CMD_ID_MOTOR_PROTO_GET = 0x27u,
+    CMD_ID_MOTOR_STX02_OPTS_SET = 0x28u,
+    CMD_ID_MOTOR_STX02_OPTS_GET = 0x29u,
+    CMD_ID_CONFIG_GET = 0x30u,
+    CMD_ID_CONFIG_STAGE = 0x31u,
+    CMD_ID_CONFIG_COMMIT = 0x32u,
+    CMD_ID_SET_PROFILE = 0x33u,
+    CMD_ID_SET_GEARS = 0x34u,
+    CMD_ID_SET_CADENCE_BIAS = 0x35u,
+    CMD_ID_TRIP_GET = 0x36u,
+    CMD_ID_TRIP_RESET = 0x37u,
+    CMD_ID_SET_DRIVE_MODE = 0x38u,
+    CMD_ID_SET_REGEN = 0x39u,
+    CMD_ID_SET_HW_CAPS = 0x3Au,
+    CMD_ID_EVENT_LOG_SUMMARY = 0x40u,
+    CMD_ID_EVENT_LOG_READ = 0x41u,
+    CMD_ID_EVENT_LOG_MARK = 0x42u,
+    CMD_ID_STREAM_LOG_SUMMARY = 0x44u,
+    CMD_ID_STREAM_LOG_READ = 0x45u,
+    CMD_ID_STREAM_LOG_CONTROL = 0x46u,
+    CMD_ID_CRASH_DUMP_READ = 0x47u,
+    CMD_ID_CRASH_DUMP_CLEAR = 0x48u,
+    CMD_ID_BUS_CAPTURE_SUMMARY = 0x50u,
+    CMD_ID_BUS_CAPTURE_READ = 0x51u,
+    CMD_ID_BUS_CAPTURE_CONTROL = 0x52u,
+    CMD_ID_BUS_CAPTURE_INJECT = 0x53u,
+    CMD_ID_BUS_UI_CONTROL = 0x54u,
+    CMD_ID_BUS_INJECT_ARM = 0x55u,
+    CMD_ID_BUS_CAPTURE_REPLAY = 0x56u,
+    CMD_ID_BLE_HACKER = 0x70u,
+    CMD_ID_AB_STATUS = 0x71u,
+    CMD_ID_AB_SET_PENDING = 0x72u,
+} comm_cmd_id_t;
+
+typedef enum {
+    MONITOR_OP_CONTINUE = 0x01u,
+} comm_monitor_cmd_t;
 
 extern uint32_t g_inputs_debug_last_ms;
-extern uint8_t g_watchdog_feed_enabled;
 extern uint16_t g_reset_flags;
 extern uint32_t g_reset_csr;
 extern uint16_t g_gear_limit_power_w;
@@ -61,8 +139,32 @@ static int config_change_guard(uint8_t cmd)
 {
     if (config_change_allowed())
         return 1;
-    send_status(cmd, 0xFC); /* blocked while moving */
+    send_status(cmd, CMD_STATUS_BLOCKED_MOVING); /* blocked while moving */
     return 0;
+}
+
+static int app_phase_privileged_cmd(uint8_t cmd)
+{
+    switch (cmd)
+    {
+    case CMD_ID_WRITE32:
+    case CMD_ID_WRITE_MEM:
+    case CMD_ID_EXEC:
+    case CMD_ID_UPLOAD_EXEC:
+    case CMD_ID_SET_STATE:
+    case CMD_ID_MOTOR_UART2_RAW_TX:
+    case CMD_ID_BUS_CAPTURE_INJECT:
+    case CMD_ID_BUS_INJECT_ARM:
+    case CMD_ID_BUS_CAPTURE_REPLAY:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+static uint8_t is_thumb_sram_exec_addr(uint32_t addr)
+{
+    return ((addr & 1u) != 0u) && ((addr & SRAM_EXEC_ADDR_MASK) == SRAM_EXEC_ADDR_BASE);
 }
 
 
@@ -85,7 +187,35 @@ static __attribute__((unused)) void log_set_bytes(const uint8_t *p, uint8_t len)
 
 static void handle_ping(uint8_t cmd)
 {
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
+}
+
+static void handle_monitor_control(const uint8_t *p, uint8_t len, uint8_t cmd)
+{
+    if (len == 0u)
+    {
+        uint8_t out[16];
+        uint8_t n = boot_monitor_build_info(out, (uint8_t)sizeof(out));
+        if (!n)
+        {
+            send_status(cmd, CMD_STATUS_BAD);
+            return;
+        }
+        send_frame_port(g_last_rx_port, cmd | 0x80, out, n);
+        return;
+    }
+    if (!p || len < 1u)
+        return;
+    uint8_t op = p[0];
+    if (op == (uint8_t)MONITOR_OP_CONTINUE)
+    {
+        /* Continue boot if we're in the boot monitor; in app mode this is a no-op. */
+        if (g_boot_phase == BOOT_PHASE_MONITOR || g_boot_phase == BOOT_PHASE_PANIC)
+            boot_monitor_request_continue();
+        send_status(cmd, CMD_STATUS_OK);
+        return;
+    }
+    send_status(cmd, CMD_STATUS_BAD);
 }
 
 static void handle_log_frame(uint8_t cmd)
@@ -110,7 +240,7 @@ static void handle_write32(const uint8_t *p, uint8_t len, uint8_t cmd)
     uint32_t addr = (p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3];
     uint32_t v = (p[4] << 24) | (p[5] << 16) | (p[6] << 8) | p[7];
     mmio_write32(addr, v);
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void handle_read_mem(const uint8_t *p, uint8_t len, uint8_t cmd)
@@ -137,7 +267,7 @@ static void handle_write_mem(const uint8_t *p, uint8_t len, uint8_t cmd)
         return;
     for (uint8_t i = 0; i < n; i++)
         *(volatile uint8_t *)(addr + i) = p[5 + i];
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 typedef void (*entry_fn_t)(void);
@@ -147,8 +277,17 @@ static void handle_exec(const uint8_t *p, uint8_t len, uint8_t cmd)
     if (len < 4)
         return;
     uint32_t addr = (p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3];
+    if (g_boot_phase != BOOT_PHASE_APP)
+    {
+        /* In the boot monitor, only allow executing code from SRAM (Thumb). */
+        if (!is_thumb_sram_exec_addr(addr))
+        {
+            send_status(cmd, CMD_STATUS_BAD);
+            return;
+        }
+    }
     entry_fn_t fn = (entry_fn_t)(uintptr_t)addr;
-    send_status(cmd, 0); /* respond before jumping */
+    send_status(cmd, CMD_STATUS_OK); /* respond before jumping */
     fn();
 }
 
@@ -160,9 +299,18 @@ static void handle_upload_exec(const uint8_t *p, uint8_t len, uint8_t cmd)
     uint8_t n = p[4];
     if (n == 0 || n > (len - 5))
         return;
+    if (g_boot_phase != BOOT_PHASE_APP)
+    {
+        /* In the boot monitor, only allow uploading/executing into SRAM. */
+        if (!is_thumb_sram_exec_addr(addr))
+        {
+            send_status(cmd, CMD_STATUS_BAD);
+            return;
+        }
+    }
     for (uint8_t i = 0; i < n; i++)
         *(volatile uint8_t *)(addr + i) = p[5 + i];
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
     ((entry_fn_t)(uintptr_t)addr)();
 }
 
@@ -176,20 +324,20 @@ static void handle_read_flash(const uint8_t *p, uint8_t len, uint8_t cmd)
         return;
 
     /* External flash is not memory-mapped on hardware; support reads via SPI.
-     * - Renode stubs map SPI flash at 0x0030_0000.
+     * - Simulation stubs map SPI flash at 0x0030_0000.
      * - The AT32 SPIM window maps at 0x0840_0000 (16MB), if enabled.
      */
-    if (addr >= SPI_FLASH_STORAGE_BASE && addr < 0x08000000u)
+    if (addr >= SPI_FLASH_STORAGE_BASE && addr < FLASH_APP_BASE)
     {
         uint8_t buf[COMM_MAX_PAYLOAD];
         spi_flash_read(addr, buf, n);
         send_frame_port(g_last_rx_port, cmd | 0x80, buf, n);
         return;
     }
-    if (addr >= 0x08400000u && addr < 0x09400000u)
+    if (addr >= SPIM_FLASH_MAP_BASE && addr < SPIM_FLASH_MAP_LIMIT)
     {
         uint8_t buf[COMM_MAX_PAYLOAD];
-        spi_flash_read(addr - 0x08400000u, buf, n);
+        spi_flash_read(addr - SPIM_FLASH_MAP_BASE, buf, n);
         send_frame_port(g_last_rx_port, cmd | 0x80, buf, n);
         return;
     }
@@ -200,9 +348,11 @@ static void handle_read_flash(const uint8_t *p, uint8_t len, uint8_t cmd)
 
 static void handle_set_bootloader_flag(uint8_t cmd)
 {
+    if (g_boot_phase == BOOT_PHASE_APP && !config_change_guard(cmd))
+        return;
     /* Mirror stock behavior: set g_bootloader_mode_flag (SPI flash) so OEM bootloader stays in update mode. */
     spi_flash_set_bootloader_mode_flag();
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void handle_state_dump(uint8_t cmd)
@@ -254,7 +404,7 @@ static void handle_debug_state_v2(uint8_t cmd)
     store_be16(&out[24], g_outputs.cmd_current_dA);
     out[26] = g_outputs.cruise_state;
     out[27] = g_adapt.eco_clamp_active ? 1u : 0u;
-    /* Profile caps for Renode assertions */
+    /* Profile caps for simulator assertions */
     const assist_profile_t *p = &g_profiles[g_outputs.profile_id];
     store_be16(&out[28], p->cap_power_w);
     store_be16(&out[30], g_effective_cap_current_dA);
@@ -404,7 +554,7 @@ static void handle_set_gears(const uint8_t *p, uint8_t len, uint8_t cmd)
     t.max_scale_q15 = load_be16(&p[4]);
     if (t.count == 0 || t.count > VGEAR_MAX)
     {
-        send_status(cmd, 0xFE);
+        send_status(cmd, CMD_STATUS_BAD);
         return;
     }
     if (len >= (uint8_t)(6 + t.count * 2u))
@@ -420,12 +570,12 @@ static void handle_set_gears(const uint8_t *p, uint8_t len, uint8_t cmd)
     }
     if (!vgear_validate(&t))
     {
-        send_status(cmd, 0xFD);
+        send_status(cmd, CMD_STATUS_BAD_PAYLOAD);
         return;
     }
     g_vgears = t;
     set_active_gear(g_active_vgear);
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void handle_set_cadence_bias(const uint8_t *p, uint8_t len, uint8_t cmd)
@@ -441,12 +591,12 @@ static void handle_set_cadence_bias(const uint8_t *p, uint8_t len, uint8_t cmd)
     cb.min_bias_q15 = load_be16(&p[5]);
     if (cb.band_rpm == 0)
     {
-        send_status(cmd, 0xFE);
+        send_status(cmd, CMD_STATUS_BAD);
         return;
     }
     cb.min_bias_q15 = clamp_q15(cb.min_bias_q15, 0, 32768u);
     g_cadence_bias = cb;
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void handle_set_drive_mode(const uint8_t *p, uint8_t len, uint8_t cmd)
@@ -458,7 +608,7 @@ static void handle_set_drive_mode(const uint8_t *p, uint8_t len, uint8_t cmd)
     drive_mode_t mode = (drive_mode_t)p[0];
     if (mode > DRIVE_MODE_SPORT)
     {
-        send_status(cmd, 0xFE);
+        send_status(cmd, CMD_STATUS_BAD);
         return;
     }
     uint16_t setpoint = 0;
@@ -485,7 +635,7 @@ static void handle_set_drive_mode(const uint8_t *p, uint8_t len, uint8_t cmd)
     g_drive.last_ms = 0;
     if (mode != DRIVE_MODE_SPORT)
         g_boost.budget_ms = g_config_active.boost_budget_ms;
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void handle_set_regen(const uint8_t *p, uint8_t len, uint8_t cmd)
@@ -497,11 +647,11 @@ static void handle_set_regen(const uint8_t *p, uint8_t len, uint8_t cmd)
     if (!regen_capable())
     {
         regen_reset();
-        send_status(cmd, 0xFD);
+        send_status(cmd, CMD_STATUS_BAD_PAYLOAD);
         return;
     }
     regen_set_levels(p[0], p[1]);
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void handle_set_hw_caps(const uint8_t *p, uint8_t len, uint8_t cmd)
@@ -513,7 +663,7 @@ static void handle_set_hw_caps(const uint8_t *p, uint8_t len, uint8_t cmd)
     g_hw_caps = (uint8_t)(p[0] & (CAP_FLAG_WALK | CAP_FLAG_REGEN));
     if (!(g_hw_caps & CAP_FLAG_REGEN))
         regen_reset();
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void handle_trip_get(uint8_t cmd)
@@ -536,7 +686,7 @@ static void handle_trip_get(uint8_t cmd)
 static void handle_trip_reset(uint8_t cmd)
 {
     trip_finalize_and_persist();
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void log_summary_base(uint8_t *out, uint8_t version, uint8_t size,
@@ -595,7 +745,7 @@ static void handle_event_log_mark(const uint8_t *p, uint8_t len, uint8_t cmd)
     if (len >= 2)
         flags = p[1];
     event_log_append(type, flags);
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void handle_stream_log_summary(uint8_t cmd)
@@ -628,7 +778,7 @@ static void handle_stream_log_control(const uint8_t *p, uint8_t len, uint8_t cmd
     if (!enable)
     {
         g_stream_log_enabled = 0;
-        send_status(cmd, 0);
+        send_status(cmd, CMD_STATUS_OK);
         return;
     }
     uint16_t period = g_config_active.log_period_ms;
@@ -638,7 +788,7 @@ static void handle_stream_log_control(const uint8_t *p, uint8_t len, uint8_t cmd
     g_stream_log_enabled = 1;
     g_stream_log_last_ms = g_ms;
     g_stream_log_last_sample_ms = 0;
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void handle_crash_dump_read(uint8_t cmd)
@@ -651,7 +801,7 @@ static void handle_crash_dump_read(uint8_t cmd)
 static void handle_crash_dump_clear(uint8_t cmd)
 {
     crash_dump_clear_storage();
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void handle_bus_capture_summary(uint8_t cmd)
@@ -721,7 +871,7 @@ static void handle_bus_capture_control(const uint8_t *p, uint8_t len, uint8_t cm
     if (len >= 2)
         reset = p[1] ? 1u : 0u;
     bus_capture_set_enabled(enable, reset);
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void handle_bus_capture_inject(const uint8_t *p, uint8_t len, uint8_t cmd)
@@ -731,10 +881,13 @@ static void handle_bus_capture_inject(const uint8_t *p, uint8_t len, uint8_t cmd
     uint8_t bus_id = p[0];
     uint16_t dt_ms = load_be16(&p[1]);
     uint8_t payload_len = p[3];
-    if (len < (uint8_t)(4u + payload_len))
     {
-        send_status(cmd, BUS_INJECT_STATUS_BAD_PAYLOAD);
-        return;
+        uint16_t needed = (uint16_t)4u + (uint16_t)payload_len;
+        if ((uint16_t)len < needed)
+        {
+            send_status(cmd, BUS_INJECT_STATUS_BAD_PAYLOAD);
+            return;
+        }
     }
     if (!bus_capture_get_enabled())
     {
@@ -763,7 +916,7 @@ static void handle_bus_capture_inject(const uint8_t *p, uint8_t len, uint8_t cmd
     flags |= BUS_INJECT_EVENT_OK;
     bus_inject_log(flags);
     bus_inject_emit(bus_id, &p[4], payload_len, dt_ms, flags);
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void handle_bus_ui_control(const uint8_t *p, uint8_t len, uint8_t cmd)
@@ -780,7 +933,7 @@ static void handle_bus_ui_control(const uint8_t *p, uint8_t len, uint8_t cmd)
     if (len >= 3)
         opcode = p[2];
     bus_ui_set_control(flags, bus_id, opcode);
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void handle_bus_inject_arm(const uint8_t *p, uint8_t len, uint8_t cmd)
@@ -790,7 +943,7 @@ static void handle_bus_inject_arm(const uint8_t *p, uint8_t len, uint8_t cmd)
     uint8_t armed = p[0] ? 1u : 0u;
     uint8_t override_flags = (len >= 2 && p[1]) ? (uint8_t)p[1] : 0u;
     bus_inject_set_armed(armed, override_flags);
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void handle_bus_capture_replay(const uint8_t *p, uint8_t len, uint8_t cmd)
@@ -801,7 +954,7 @@ static void handle_bus_capture_replay(const uint8_t *p, uint8_t len, uint8_t cmd
     if (mode == 0)
     {
         bus_replay_cancel(BUS_INJECT_EVENT_BLOCKED_BRAKE);
-        send_status(cmd, 0);
+        send_status(cmd, CMD_STATUS_OK);
         return;
     }
     if (len < 4)
@@ -840,7 +993,7 @@ static void handle_bus_capture_replay(const uint8_t *p, uint8_t len, uint8_t cmd
     }
     bus_inject_log((uint8_t)(BUS_INJECT_EVENT_OK | BUS_INJECT_EVENT_REPLAY));
     bus_replay_start(offset, rate_ms);
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void handle_set_state(const uint8_t *p, uint8_t len, uint8_t cmd)
@@ -899,7 +1052,7 @@ static void handle_set_state(const uint8_t *p, uint8_t len, uint8_t cmd)
     process_buttons(g_inputs.buttons);
     app_apply_inputs();
 
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 
 }
 
@@ -936,6 +1089,143 @@ static void handle_graph_summary(uint8_t cmd)
     send_frame_port(g_last_rx_port, cmd | 0x80, out, (uint8_t)sizeof(out));
 }
 
+static void handle_motor_uart2_raw_tx(const uint8_t *p, uint8_t len, uint8_t cmd)
+{
+    if (!p || len == 0u)
+    {
+        send_status(cmd, CMD_STATUS_BAD_PAYLOAD);
+        return;
+    }
+    /* motor_isr_queue_frame() buffers up to MOTOR_ISR_TX_MAX bytes for TX. */
+    if (len > (uint8_t)MOTOR_ISR_TX_MAX)
+    {
+        send_status(cmd, CMD_STATUS_BAD_ARG);
+        return;
+    }
+    uint8_t ok = motor_isr_queue_frame(p, len) ? 1u : 0u;
+    send_status(cmd, ok ? CMD_STATUS_OK : CMD_STATUS_BAD);
+}
+
+static void handle_motor_last_frame(uint8_t cmd)
+{
+    uint8_t frame[SHENGYI_MAX_FRAME_SIZE];
+    uint8_t frame_len = 0u;
+    uint8_t frame_op = 0u;
+    uint8_t frame_seq = 0u;
+    motor_proto_t proto = MOTOR_PROTO_SHENGYI_3A1A;
+    uint16_t aux16 = 0u;
+
+    if (!motor_isr_copy_last_frame(frame, (uint8_t)sizeof(frame), &frame_len, &frame_op, &frame_seq, &proto, &aux16))
+    {
+        send_status(cmd, CMD_STATUS_BAD);
+        return;
+    }
+
+    /* Response: proto, op, seq, aux16_be, len, then up to 16 bytes of frame. */
+    uint8_t out[1u + 1u + 1u + 2u + 1u + 16u];
+    uint8_t n = 0u;
+    out[n++] = (uint8_t)proto;
+    out[n++] = frame_op;
+    out[n++] = frame_seq;
+    out[n++] = (uint8_t)(aux16 >> 8);
+    out[n++] = (uint8_t)(aux16 & 0xFFu);
+    out[n++] = frame_len;
+    uint8_t dump = frame_len;
+    if (dump > 16u)
+        dump = 16u;
+    for (uint8_t i = 0u; i < dump; ++i)
+        out[n++] = frame[i];
+    send_frame_port(g_last_rx_port, cmd | 0x80u, out, n);
+}
+
+static void handle_motor_proto_set(const uint8_t *p, uint8_t len, uint8_t cmd)
+{
+    if (!p || len < 1u)
+        return;
+    motor_link_mode_t mode = (motor_link_mode_t)p[0];
+    if (mode > MOTOR_LINK_MODE_FORCE_V2)
+    {
+        send_status(cmd, CMD_STATUS_BAD_ARG);
+        return;
+    }
+    motor_link_set_mode(mode);
+    send_status(cmd, CMD_STATUS_OK);
+}
+
+static void handle_motor_proto_get(uint8_t cmd)
+{
+    motor_link_mode_t mode = motor_link_get_mode();
+    motor_proto_t active = motor_link_get_active_proto();
+    uint8_t locked = motor_link_is_locked();
+
+    uint8_t out[3];
+    out[0] = (uint8_t)mode;
+    out[1] = (uint8_t)active;
+    out[2] = locked ? 1u : 0u;
+    send_frame_port(g_last_rx_port, cmd | 0x80u, out, (uint8_t)sizeof(out));
+}
+
+static uint8_t motor_stx02_opts_pack_u8(void)
+{
+    /* Natural bits: b0=bit6_src, b1=bit3_src, b2=speed_gate. */
+    uint16_t r = g_config_active.reserved;
+    uint8_t o = 0u;
+    if (r & CFG_RSVD_STX02_BIT6_ENABLE) o |= (1u << 0);
+    if ((r & CFG_RSVD_STX02_BIT3_DISABLE) == 0u) o |= (1u << 1);
+    if (r & CFG_RSVD_STX02_SPEED_GATE_ENABLE) o |= (1u << 2);
+    return o;
+}
+
+static void motor_stx02_opts_apply_u8(uint8_t opts)
+{
+    uint16_t r = g_config_active.reserved;
+    r = (uint16_t)(r & (uint16_t)~CFG_RSVD_STX02_MASK);
+
+    if (opts & (1u << 0))
+        r |= CFG_RSVD_STX02_BIT6_ENABLE;
+    if ((opts & (1u << 1)) == 0u)
+        r |= CFG_RSVD_STX02_BIT3_DISABLE;
+    if (opts & (1u << 2))
+        r |= CFG_RSVD_STX02_SPEED_GATE_ENABLE;
+
+    g_config_active.reserved = r;
+    /* Keep RAM copy self-consistent even when not persisting. */
+    g_config_active.crc32 = 0;
+    g_config_active.crc32 = config_crc_expected(&g_config_active);
+}
+
+static void handle_motor_stx02_opts_set(const uint8_t *p, uint8_t len, uint8_t cmd)
+{
+    if (!p || len < 1u)
+        return;
+    uint8_t opts = p[0];
+    int persist = (len >= 2u) ? (p[1] != 0u) : 1; /* default persist */
+
+    if (opts & (uint8_t)~0x07u)
+    {
+        send_status(cmd, CMD_STATUS_BAD_ARG);
+        return;
+    }
+
+    if (persist && !config_change_guard(cmd))
+        return;
+
+    motor_stx02_opts_apply_u8(opts);
+    if (persist)
+        config_persist_active();
+    send_status(cmd, CMD_STATUS_OK);
+}
+
+static void handle_motor_stx02_opts_get(uint8_t cmd)
+{
+    uint8_t out[3];
+    out[0] = motor_stx02_opts_pack_u8();
+    uint16_t r = g_config_active.reserved;
+    out[1] = (uint8_t)(r >> 8);
+    out[2] = (uint8_t)(r & 0xFFu);
+    send_frame_port(g_last_rx_port, cmd | 0x80u, out, (uint8_t)sizeof(out));
+}
+
 static void handle_graph_control(const uint8_t *p, uint8_t len, uint8_t cmd)
 {
     if (len < 2)
@@ -945,10 +1235,10 @@ static void handle_graph_control(const uint8_t *p, uint8_t len, uint8_t cmd)
     uint8_t reset = (len >= 3 && (p[2] & 0x01u)) ? 1u : 0u;
     if (!graph_set_active(channel, window, reset))
     {
-        send_status(cmd, 0xFE);
+        send_status(cmd, CMD_STATUS_BAD);
         return;
     }
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void fill_state_frame(comm_state_frame_t *state)
@@ -994,7 +1284,7 @@ static void handle_ble_hacker(const uint8_t *p, uint8_t len, uint8_t cmd)
         if (resp_len)
             send_frame_port(g_last_rx_port, cmd | 0x80, out, resp_len);
         else
-            send_status(cmd, 0xFE);
+            send_status(cmd, CMD_STATUS_BAD);
         return;
     }
 
@@ -1083,7 +1373,7 @@ static void handle_ble_hacker(const uint8_t *p, uint8_t len, uint8_t cmd)
 
     if (!resp_len)
     {
-        send_status(cmd, 0xFE);
+        send_status(cmd, CMD_STATUS_BAD);
         return;
     }
     send_frame_port(g_last_rx_port, cmd | 0x80, out, resp_len);
@@ -1096,7 +1386,7 @@ static void handle_set_stream(const uint8_t *p, uint8_t len, uint8_t cmd)
     uint16_t period = ((uint16_t)p[0] << 8) | p[1];
     g_stream_period_ms = period;
     g_last_stream_ms = g_ms;
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void handle_set_debug_output(const uint8_t *p, uint8_t len, uint8_t cmd)
@@ -1106,11 +1396,13 @@ static void handle_set_debug_output(const uint8_t *p, uint8_t len, uint8_t cmd)
     uint8_t mask = p[0];
     mask = (uint8_t)(mask & (DEBUG_UART_TRACE_UI | DEBUG_UART_STATUS));
     g_debug_uart_mask = mask;
-    send_status(cmd, 0);
+    send_status(cmd, CMD_STATUS_OK);
 }
 
 static void handle_reboot_bootloader(uint8_t cmd)
 {
+    if (g_boot_phase == BOOT_PHASE_APP && !config_change_guard(cmd))
+        return;
     handle_set_bootloader_flag(cmd); /* ack + flag */
     reboot_to_bootloader();
 }
@@ -1119,56 +1411,93 @@ int comm_handle_command(uint8_t cmd, const uint8_t *payload, uint8_t len)
 {
     const uint8_t *p = payload;
 
+    /* Boot monitor gating: before full app init, only a minimal, safe command
+     * surface is allowed (peek/poke, flash reads, exec-in-RAM, reboot).
+     * Everything else is rejected with STATUS_UNSUPPORTED (0xFF). */
+    if (g_boot_phase != BOOT_PHASE_APP)
+    {
+        switch (cmd)
+        {
+        case CMD_ID_PING:
+        case CMD_ID_READ32:
+        case CMD_ID_WRITE32:
+        case CMD_ID_READ_MEM:
+        case CMD_ID_WRITE_MEM:
+        case CMD_ID_EXEC:
+        case CMD_ID_UPLOAD_EXEC:
+        case CMD_ID_READ_FLASH:
+        case CMD_ID_MONITOR:
+        case CMD_ID_SET_BOOTLOADER_FLAG:
+        case CMD_ID_REBOOT_BOOTLOADER:
+        case LOG_FRAME_CMD:
+            break;
+        default:
+            return 0;
+        }
+    }
+    else if (app_phase_privileged_cmd(cmd))
+    {
+        send_status(cmd, CMD_STATUS_BAD_ARG);
+        return 1;
+    }
+
     switch (cmd)
     {
-    case 0x01: handle_ping(cmd); return 1;
+    case CMD_ID_PING: handle_ping(cmd); return 1;
     case LOG_FRAME_CMD: handle_log_frame(cmd); return 1;
-    case 0x02: handle_read32(p, len, cmd); return 1;
-    case 0x03: handle_write32(p, len, cmd); return 1;
-    case 0x04: handle_read_mem(p, len, cmd); return 1;
-    case 0x05: handle_write_mem(p, len, cmd); return 1;
-    case 0x06: handle_exec(p, len, cmd); return 1;
-    case 0x07: handle_upload_exec(p, len, cmd); return 1;
-    case 0x08: handle_read_flash(p, len, cmd); return 1;
-    case 0x0A: handle_state_dump(cmd); return 1;
-    case 0x0B: handle_set_bootloader_flag(cmd); return 1;
-    case 0x0C: handle_set_state(p, len, cmd); return 1;
-    case 0x0D: handle_set_stream(p, len, cmd); return 1;
-    case 0x0E: handle_reboot_bootloader(cmd); return 1;
-    case 0x0F: handle_set_debug_output(p, len, cmd); return 1;
-    case 0x20: handle_speed_rb_summary(cmd); return 1;
-    case 0x21: handle_debug_state_v2(cmd); return 1;
-    case 0x22: handle_graph_summary(cmd); return 1;
-    case 0x23: handle_graph_control(p, len, cmd); return 1;
-    case 0x30: handle_config_get(cmd); return 1;
-    case 0x31: handle_config_stage(p, len, cmd); return 1;
-    case 0x32: handle_config_commit(p, len, cmd); return 1;
-    case 0x33: handle_set_profile(p, len, cmd); return 1;
-    case 0x34: handle_set_gears(p, len, cmd); return 1;
-    case 0x35: handle_set_cadence_bias(p, len, cmd); return 1;
-    case 0x36: handle_trip_get(cmd); return 1;
-    case 0x37: handle_trip_reset(cmd); return 1;
-    case 0x38: handle_set_drive_mode(p, len, cmd); return 1;
-    case 0x39: handle_set_regen(p, len, cmd); return 1;
-    case 0x3A: handle_set_hw_caps(p, len, cmd); return 1;
-    case 0x40: handle_event_log_summary(cmd); return 1;
-    case 0x41: handle_event_log_read(p, len, cmd); return 1;
-    case 0x42: handle_event_log_mark(p, len, cmd); return 1;
-    case 0x44: handle_stream_log_summary(cmd); return 1;
-    case 0x45: handle_stream_log_read(p, len, cmd); return 1;
-    case 0x46: handle_stream_log_control(p, len, cmd); return 1;
-    case 0x47: handle_crash_dump_read(cmd); return 1;
-    case 0x48: handle_crash_dump_clear(cmd); return 1;
-    case 0x50: handle_bus_capture_summary(cmd); return 1;
-    case 0x51: handle_bus_capture_read(p, len, cmd); return 1;
-    case 0x52: handle_bus_capture_control(p, len, cmd); return 1;
-    case 0x53: handle_bus_capture_inject(p, len, cmd); return 1;
-    case 0x54: handle_bus_ui_control(p, len, cmd); return 1;
-    case 0x55: handle_bus_inject_arm(p, len, cmd); return 1;
-    case 0x56: handle_bus_capture_replay(p, len, cmd); return 1;
-    case 0x71: handle_ab_status(cmd); return 1;
-    case 0x72: handle_ab_set_pending(p, len, cmd); return 1;
-    case 0x70: handle_ble_hacker(p, len, cmd); return 1;
+    case CMD_ID_READ32: handle_read32(p, len, cmd); return 1;
+    case CMD_ID_WRITE32: handle_write32(p, len, cmd); return 1;
+    case CMD_ID_READ_MEM: handle_read_mem(p, len, cmd); return 1;
+    case CMD_ID_WRITE_MEM: handle_write_mem(p, len, cmd); return 1;
+    case CMD_ID_EXEC: handle_exec(p, len, cmd); return 1;
+    case CMD_ID_UPLOAD_EXEC: handle_upload_exec(p, len, cmd); return 1;
+    case CMD_ID_READ_FLASH: handle_read_flash(p, len, cmd); return 1;
+    case CMD_ID_MONITOR: handle_monitor_control(p, len, cmd); return 1;
+    case CMD_ID_STATE_DUMP: handle_state_dump(cmd); return 1;
+    case CMD_ID_SET_BOOTLOADER_FLAG: handle_set_bootloader_flag(cmd); return 1;
+    case CMD_ID_SET_STATE: handle_set_state(p, len, cmd); return 1;
+    case CMD_ID_SET_STREAM: handle_set_stream(p, len, cmd); return 1;
+    case CMD_ID_REBOOT_BOOTLOADER: handle_reboot_bootloader(cmd); return 1;
+    case CMD_ID_SET_DEBUG_OUTPUT: handle_set_debug_output(p, len, cmd); return 1;
+    case CMD_ID_SPEED_RB_SUMMARY: handle_speed_rb_summary(cmd); return 1;
+    case CMD_ID_DEBUG_STATE_V2: handle_debug_state_v2(cmd); return 1;
+    case CMD_ID_GRAPH_SUMMARY: handle_graph_summary(cmd); return 1;
+    case CMD_ID_GRAPH_CONTROL: handle_graph_control(p, len, cmd); return 1;
+    case CMD_ID_MOTOR_UART2_RAW_TX: handle_motor_uart2_raw_tx(p, len, cmd); return 1;
+    case CMD_ID_MOTOR_LAST_FRAME: handle_motor_last_frame(cmd); return 1;
+    case CMD_ID_MOTOR_PROTO_SET: handle_motor_proto_set(p, len, cmd); return 1;
+    case CMD_ID_MOTOR_PROTO_GET: handle_motor_proto_get(cmd); return 1;
+    case CMD_ID_MOTOR_STX02_OPTS_SET: handle_motor_stx02_opts_set(p, len, cmd); return 1;
+    case CMD_ID_MOTOR_STX02_OPTS_GET: handle_motor_stx02_opts_get(cmd); return 1;
+    case CMD_ID_CONFIG_GET: handle_config_get(cmd); return 1;
+    case CMD_ID_CONFIG_STAGE: handle_config_stage(p, len, cmd); return 1;
+    case CMD_ID_CONFIG_COMMIT: handle_config_commit(p, len, cmd); return 1;
+    case CMD_ID_SET_PROFILE: handle_set_profile(p, len, cmd); return 1;
+    case CMD_ID_SET_GEARS: handle_set_gears(p, len, cmd); return 1;
+    case CMD_ID_SET_CADENCE_BIAS: handle_set_cadence_bias(p, len, cmd); return 1;
+    case CMD_ID_TRIP_GET: handle_trip_get(cmd); return 1;
+    case CMD_ID_TRIP_RESET: handle_trip_reset(cmd); return 1;
+    case CMD_ID_SET_DRIVE_MODE: handle_set_drive_mode(p, len, cmd); return 1;
+    case CMD_ID_SET_REGEN: handle_set_regen(p, len, cmd); return 1;
+    case CMD_ID_SET_HW_CAPS: handle_set_hw_caps(p, len, cmd); return 1;
+    case CMD_ID_EVENT_LOG_SUMMARY: handle_event_log_summary(cmd); return 1;
+    case CMD_ID_EVENT_LOG_READ: handle_event_log_read(p, len, cmd); return 1;
+    case CMD_ID_EVENT_LOG_MARK: handle_event_log_mark(p, len, cmd); return 1;
+    case CMD_ID_STREAM_LOG_SUMMARY: handle_stream_log_summary(cmd); return 1;
+    case CMD_ID_STREAM_LOG_READ: handle_stream_log_read(p, len, cmd); return 1;
+    case CMD_ID_STREAM_LOG_CONTROL: handle_stream_log_control(p, len, cmd); return 1;
+    case CMD_ID_CRASH_DUMP_READ: handle_crash_dump_read(cmd); return 1;
+    case CMD_ID_CRASH_DUMP_CLEAR: handle_crash_dump_clear(cmd); return 1;
+    case CMD_ID_BUS_CAPTURE_SUMMARY: handle_bus_capture_summary(cmd); return 1;
+    case CMD_ID_BUS_CAPTURE_READ: handle_bus_capture_read(p, len, cmd); return 1;
+    case CMD_ID_BUS_CAPTURE_CONTROL: handle_bus_capture_control(p, len, cmd); return 1;
+    case CMD_ID_BUS_CAPTURE_INJECT: handle_bus_capture_inject(p, len, cmd); return 1;
+    case CMD_ID_BUS_UI_CONTROL: handle_bus_ui_control(p, len, cmd); return 1;
+    case CMD_ID_BUS_INJECT_ARM: handle_bus_inject_arm(p, len, cmd); return 1;
+    case CMD_ID_BUS_CAPTURE_REPLAY: handle_bus_capture_replay(p, len, cmd); return 1;
+    case CMD_ID_AB_STATUS: handle_ab_status(cmd); return 1;
+    case CMD_ID_AB_SET_PENDING: handle_ab_set_pending(p, len, cmd); return 1;
+    case CMD_ID_BLE_HACKER: handle_ble_hacker(p, len, cmd); return 1;
     default:
         return 0;
     }

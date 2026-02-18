@@ -48,6 +48,15 @@ if not meson.is_cross_build()
   )
   test('core', test_core_exe)
 
+  # Unit test: battery SOC curve interpolation (OEM v2.5.1 tables)
+  test_batt_soc_exe = executable('test_battery_soc',
+    'unit/test_battery_soc.c',
+    '../../src/power/battery_soc.c',
+    c_args: host_test_defs,
+    include_directories: [all_inc, tests_inc],
+  )
+  test('battery_soc', test_batt_soc_exe)
+
   # Unit test: UI engineer page
   test_ui_exe = executable('test_ui',
     'unit/test_ui_engineer.c',
@@ -73,6 +82,15 @@ if not meson.is_cross_build()
     include_directories: [all_inc, tests_inc, test_sim_inc],
   )
   test('shengyi_bus', test_tsbus_exe)
+
+  # Unit test: STX02/XOR cmd1 decoder (OEM v2.5.1 Protocol B)
+  test_motor_stx02_exe = executable('test_motor_stx02',
+    'unit/test_motor_stx02.c',
+    '../../src/motor/motor_stx02.c',
+    c_args: host_test_defs,
+    include_directories: [all_inc, tests_inc],
+  )
+  test('motor_stx02', test_motor_stx02_exe)
 
   # Unit test: Event queue (kernel infrastructure)
   test_event_queue_exe = executable('test_event_queue',

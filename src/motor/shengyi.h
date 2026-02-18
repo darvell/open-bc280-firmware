@@ -11,6 +11,10 @@
 #define SHENGYI_OPCODE_CONFIG_C3 0xC3
 #define SHENGYI_OPCODE_STATUS_C0 0xC0
 #define SHENGYI_OPCODE_STATUS_14 0x14
+#define SHENGYI_OPCODE_PROTO_SWITCH 0xAB
+
+/* Default wheel size used when config has not been loaded (millimeters). */
+#define SHENGYI_DEFAULT_WHEEL_MM 2100u
 
 /* Shengyi DWG22 frame constants */
 #define SHENGYI_FRAME_START   0x3Au
@@ -153,6 +157,9 @@ uint8_t shengyi_build_flags(void);
 
 /* Battery SOC estimate from deci-volts (0.1 V) */
 uint8_t shengyi_batt_soc_pct_from_dV(int16_t batt_dV);
+
+/* Battery nominal voltage (24/36/48) if known, else 0 to infer. */
+uint8_t shengyi_nominal_v(void);
 
 /* Map virtual gear to OEM assist level byte */
 uint8_t shengyi_assist_level_mapped(void);

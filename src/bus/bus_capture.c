@@ -166,7 +166,7 @@ void bus_replay_tick(void)
         bus_replay_cancel(BUS_INJECT_EVENT_BLOCKED_MOVING);
         return;
     }
-    if ((g_bus_replay_next_ms - g_ms) <= 0x7FFFFFFFu)
+    if ((int32_t)(g_ms - g_bus_replay_next_ms) >= 0)
     {
         if (g_bus_replay_offset >= g_bus_capture_count)
         {

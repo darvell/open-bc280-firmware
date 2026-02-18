@@ -14,7 +14,6 @@ Open-source, hacker-friendly firmware for BC280-class e-bike displays controllin
 ## Expectations for agents
 - Default to preserving OEM artifacts; never delete binaries unless explicitly told.
 - When adding tooling or configs, keep them self-contained under this workspace; do not reach back into other repos without noting it.
-- Prefer host unit tests and host-side simulators first; use Renode only when a peripheral behavior must be exercised.
 - Keep instructions succinct and automatable (one-liners or scripts). Document new commands in README/AGENTS when they affect workflow.
 - Open-firmware must not be linked against OEM images; treat OEM binaries only as references/tests.
 - Do not modify or replace the OEM bootloader. All boot behavior should continue to pass through vendor bootloader validate/jump. If runtime patches are needed, do them in RAM and preserve the bootloader entry.
@@ -26,7 +25,6 @@ Open-source, hacker-friendly firmware for BC280-class e-bike displays controllin
 - Use `ninja -C build-host host_sim` then `./build-host/tests/host/host_sim` to exercise the full fake-bike loop with UART/BLE/sensor shims.
 - Keep a host-side peripheral shim/simulator (UART/BLE/sensors) that is **not** compiled into the embedded build; it should live under `tests/host/` or `scripts/`.
 - Use the shim to drive full-bike simulations (fake motor/sensors/ble UART) and compare deterministic traces/hashes.
-- Renode remains the integration backstop for verifying MMIO-level behavior.
 
 ## Targets & assumptions
 - Hardware: BC280 display + Shengyi DWG22 (custom variant) controller; Aventon bike variants prioritized.
@@ -37,22 +35,13 @@ Open-source, hacker-friendly firmware for BC280-class e-bike displays controllin
 ## Build (Meson/Ninja)
 - Firmware (cross): `meson setup build --cross-file cross/arm-none-eabi-clang.txt` then `ninja -C build`.
 - Host: `meson setup build-host` then `ninja -C build-host test`.
-- No optional build flags: single-path build only (legacy UI assets, Renode trace hooks, BLE compat/MITM, fault injection, release signing removed).
 
-## Renode quickstart (macOS)
-- Preferred: use the bundled app at `renode/Renode.app` and run `./scripts/renode_smoke.sh`.
-- If Renode isn’t in `/Applications`, set `RENODE_APP` to the bundle path:
-  - `RENODE_APP="$PWD/renode/Renode.app" ./scripts/renode_smoke.sh`
-- If you have a native binary, set `RENODE_BIN` instead (or put `renode` on PATH).
-- The smoke script will fall back to `Renode.exe` via `mono64` when no native binary exists.
-- Tests expect UART output under `BC280_RENODE_OUTDIR` (defaults to a temp dir).
 
 ## IDA quick-reference for this workspace
 - Active DB: `BC280_Combined_Firmware_3.3.6_4.2.5.bin` (ARM Cortex-M4F, AT32F403A).
 - Segments of interest:
   - `FLASH_BOOT` 0x0800_0000–0x0800_FFFF: OEM bootloader.
   - `FLASH_APP`  0x0801_0000–…      : OEM application.
-  - SPI flash window mapped in Renode stubs: `storage` region and BOOTLOADER_MODE flag at 0x0030_0000+0x3FF080.
 - Entry vectors: Reset vector at 0x0800_0004 -> `BL_Reset_Handler_0` -> `bootloader_main` -> validates app via `validate_firmware_header` / `jump_to_application_firmware`.
 - App boot image layout: app vector table at 0x0801_0000 (SP, Reset). Use `mcporter ida.disassemble selector=0x8010000-0x8010100` to inspect.
 - Key functions:

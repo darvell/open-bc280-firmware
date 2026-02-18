@@ -47,9 +47,23 @@
 #define IWDG_KR   (IWDG_BASE + 0x00u)
 #define IWDG_PR   (IWDG_BASE + 0x04u)
 #define IWDG_RLR  (IWDG_BASE + 0x08u)
+#define IWDG_KR_UNLOCK 0x5555u
+#define IWDG_KR_START  0xCCCCu
+#define IWDG_KR_FEED   0xAAAAu
+
+/* Flash / vector table layout (bootloader + app image). */
+#define FLASH_BOOTLOADER_BASE 0x08000000u
+#define FLASH_APP_BASE       0x08010000u
+#define FLASH_APP_ALIAS      0x00010000u
+#define FLASH_VECTOR_SP_OFFSET 0x00u
+#define FLASH_VECTOR_RESET_OFFSET 0x04u
 
 /* Flash access control */
 #define FLASH_ACR 0x40022000u
+
+/* LCD command/data windows on FSMC @ 0x6000xxxx. */
+#define LCD_CMD_ADDR  0x60000000u
+#define LCD_DATA_ADDR 0x60020000u
 
 /* GPIO/UART/SPI (base addresses observed on BC280 platform) */
 #define UART1_BASE 0x40013800u

@@ -1,12 +1,16 @@
 #include "platform/board_init.h"
 
 #include "drivers/st7789_8080.h"
+#include "platform/early_init.h"
 #include "platform/hw.h"
 #include "platform/mmio.h"
 #include "platform/time.h"
 #include "storage/boot_stage.h"
+#include "boot_log.h"
 #include "ui_lcd.h"
+#include "ui_display.h"
 
+#define RCC_APB2ENR_AFIO   (1u << 0)
 #define RCC_APB2ENR_IOPA   (1u << 2)
 #define RCC_APB2ENR_IOPB   (1u << 3)
 #define RCC_APB2ENR_IOPC   (1u << 4)
@@ -22,11 +26,6 @@
 
 #define RCC_AHBENR_FSMC    (1u << 8)
 
-#define LCD_CMD_ADDR  0x60000000u
-#define LCD_DATA_ADDR 0x60020000u
-
-#define IWDG_KR_FEED 0xAAAAu
-
 #define ADC1_BASE 0x40012400u
 #define ADC_CR1   (ADC1_BASE + 0x04u)
 #define ADC_CR2   (ADC1_BASE + 0x08u)
@@ -37,6 +36,7 @@
 static inline void board_stage_mark(uint32_t value)
 {
     boot_stage_log(value);
+    boot_log_stage(value);
 }
 
 static void platform_delay_ms(uint32_t ms)
@@ -97,6 +97,17 @@ static void gpio_clear_bits(uint32_t base, uint16_t mask)
     mmio_write32(GPIO_BRR(base), mask);
 }
 
+void platform_key_output_set(uint8_t on)
+{
+    /* Make this safe to call even during early boot or reboot paths. */
+    mmio_write32(RCC_APB2ENR, mmio_read32(RCC_APB2ENR) | RCC_APB2ENR_IOPB);
+    gpio_configure_mask(GPIOB_BASE, (uint16_t)(1u << 1), 0x10u, 0x02u); /* PB1 output PP */
+    if (on)
+        gpio_set_bits(GPIOB_BASE, (uint16_t)(1u << 1));
+    else
+        gpio_clear_bits(GPIOB_BASE, (uint16_t)(1u << 1));
+}
+
 void platform_nvic_init(void)
 {
     mmio_write32(SCB_AIRCR, SCB_AIRCR_VECTKEY | 0x500u);
@@ -126,42 +137,92 @@ void platform_uart_irq_init(void)
 static void platform_power_hold_pin_init(void)
 {
     board_stage_mark(0xB110);
-    mmio_write32(RCC_APB2ENR, mmio_read32(RCC_APB2ENR) | RCC_APB2ENR_IOPB);
-    gpio_configure_mask(GPIOB_BASE, (uint16_t)(1u << 1), 0x10u, 0x02u);
-    /* PB1: power hold latch (OEM bootloader drives high). */
-    gpio_set_bits(GPIOB_BASE, (uint16_t)(1u << 1));
+    /* OEM app v2.5.1: PB1 is configured early and driven low. Treat as "KEY"/enable,
+     * not a hard power latch (OEM bootloader may still leave it high). */
+    platform_key_output_set(0u);
 }
 
 void platform_ble_control_pins_init(void)
 {
     board_stage_mark(0xB120);
-    mmio_write32(RCC_APB2ENR, mmio_read32(RCC_APB2ENR) | RCC_APB2ENR_IOPA | RCC_APB2ENR_IOPC);
+    /*
+     * BLE module control straps (OEM v2.3.0 ble_control_pins_init @ 0x80111E4):
+     * - PA12: driven HIGH (BSRR)
+     * - PA11: driven LOW (BRR)
+     * - PC12: driven LOW (BRR)
+     * No reset pulse — OEM just sets pin states directly.
+     */
+    mmio_write32(RCC_APB2ENR,
+                mmio_read32(RCC_APB2ENR) | RCC_APB2ENR_IOPA | RCC_APB2ENR_IOPC);
 
+    /* Configure strap pins as outputs (push-pull @ 2MHz). */
     gpio_configure_mask(GPIOA_BASE, (uint16_t)((1u << 11) | (1u << 12)), 0x10u, 0x02u);
+    gpio_configure_mask(GPIOC_BASE, (uint16_t)(1u << 12), 0x10u, 0x02u);
+
+    /* OEM v2.3.0 ble_control_pins_init (0x80111E4):
+     * PA12 HIGH (BSRR), PA11 LOW (BRR), PC12 LOW (BRR). No reset pulse. */
     gpio_set_bits(GPIOA_BASE, (uint16_t)(1u << 12));
     gpio_clear_bits(GPIOA_BASE, (uint16_t)(1u << 11));
-
-    gpio_configure_mask(GPIOC_BASE, (uint16_t)(1u << 12), 0x10u, 0x02u);
     gpio_clear_bits(GPIOC_BASE, (uint16_t)(1u << 12));
 }
 
-static void platform_motor_control_pins_init(void)
+static void platform_ble_pins_ensure_output(void)
 {
-    board_stage_mark(0xB125);
-    mmio_write32(RCC_APB2ENR, mmio_read32(RCC_APB2ENR) | RCC_APB2ENR_IOPA | RCC_APB2ENR_IOPB);
-
-    /* OEM app: PA11/PA12 outputs, PA12 high, PA11 low. */
+    /* Keep this safe to call even if clocks/pins are partially configured. */
+    mmio_write32(RCC_APB2ENR,
+                mmio_read32(RCC_APB2ENR) | RCC_APB2ENR_IOPA | RCC_APB2ENR_IOPC);
     gpio_configure_mask(GPIOA_BASE, (uint16_t)((1u << 11) | (1u << 12)), 0x10u, 0x02u);
-    gpio_set_bits(GPIOA_BASE, (uint16_t)(1u << 12));
-    gpio_clear_bits(GPIOA_BASE, (uint16_t)(1u << 11));
+    gpio_configure_mask(GPIOC_BASE, (uint16_t)(1u << 12), 0x10u, 0x02u);
+}
 
-    /* OEM app: PB12 output high. */
-    gpio_configure_mask(GPIOB_BASE, (uint16_t)(1u << 12), 0x10u, 0x02u);
-    gpio_set_bits(GPIOB_BASE, (uint16_t)(1u << 12));
+void platform_ble_pa11_set(uint8_t high)
+{
+    platform_ble_pins_ensure_output();
+    if (high)
+        gpio_set_bits(GPIOA_BASE, (uint16_t)(1u << 11));
+    else
+        gpio_clear_bits(GPIOA_BASE, (uint16_t)(1u << 11));
+}
 
-    /* OEM app: PB5/PB6 outputs high. */
-    gpio_configure_mask(GPIOB_BASE, (uint16_t)((1u << 5) | (1u << 6)), 0x10u, 0x02u);
-    gpio_set_bits(GPIOB_BASE, (uint16_t)((1u << 5) | (1u << 6)));
+void platform_ble_pa12_set(uint8_t high)
+{
+    platform_ble_pins_ensure_output();
+    if (high)
+        gpio_set_bits(GPIOA_BASE, (uint16_t)(1u << 12));
+    else
+        gpio_clear_bits(GPIOA_BASE, (uint16_t)(1u << 12));
+}
+
+void platform_ble_pc12_set(uint8_t high)
+{
+    platform_ble_pins_ensure_output();
+    if (high)
+        gpio_set_bits(GPIOC_BASE, (uint16_t)(1u << 12));
+    else
+        gpio_clear_bits(GPIOC_BASE, (uint16_t)(1u << 12));
+}
+
+uint8_t platform_ble_pa11_get(void)
+{
+    return (mmio_read32(GPIO_ODR(GPIOA_BASE)) & (1u << 11)) ? 1u : 0u;
+}
+
+uint8_t platform_ble_pa12_get(void)
+{
+    return (mmio_read32(GPIO_ODR(GPIOA_BASE)) & (1u << 12)) ? 1u : 0u;
+}
+
+uint8_t platform_ble_pc12_get(void)
+{
+    return (mmio_read32(GPIO_ODR(GPIOC_BASE)) & (1u << 12)) ? 1u : 0u;
+}
+
+void platform_ble_reset_pulse(uint32_t low_ms)
+{
+    /* Treat PA12 as active-low reset; mirrors OEM "disconnect" behavior. */
+    platform_ble_pa12_set(0u);
+    platform_delay_ms(low_ms ? low_ms : 10u);
+    platform_ble_pa12_set(1u);
 }
 
 void platform_buttons_init(void)
@@ -169,14 +230,21 @@ void platform_buttons_init(void)
     board_stage_mark(0xB130);
     mmio_write32(RCC_APB2ENR, mmio_read32(RCC_APB2ENR) | RCC_APB2ENR_IOPC);
     /* OEM app: PC0-4 inputs with pull-up. */
-    gpio_configure_mask(GPIOC_BASE, 0x001Fu, 0x48u, 0x02u);
+    gpio_configure_mask(GPIOC_BASE, 0x001Fu, 0x48u, 0x00u);
 }
 
 void platform_gpioc_aux_init(void)
 {
     board_stage_mark(0xB135);
     mmio_write32(RCC_APB2ENR, mmio_read32(RCC_APB2ENR) | RCC_APB2ENR_IOPC);
-    /* OEM app: PC5/PC6 outputs (mode 0x14 + extend 0x01 -> 0x5). */
+
+    /* OEM app v2.5.1 (`sub_8018F40` @ 0x8018F40):
+     * - PC5/PC6 configured as output open-drain (mode nibble 0x5 => 10MHz OD).
+     * - PC5/PC6 ODR bits forced high via GPIOC_BSRR (released/high for open-drain).
+     *
+     * The real semantics of PC5/PC6 are unknown (likely accessory/harness).
+     * What matters for alignment is matching the observable register writes.
+     */
     gpio_configure_mask(GPIOC_BASE, 0x0060u, 0x14u, 0x01u);
     gpio_set_bits(GPIOC_BASE, 0x0060u);
 }
@@ -199,15 +267,16 @@ static void platform_fsmc_init(void)
     mmio_write32(RCC_AHBENR, mmio_read32(RCC_AHBENR) | RCC_AHBENR_FSMC);
 
     /*
-     * FSMC timing for ST7789 over 8080 parallel interface.
-     * At 72MHz HCLK, each cycle is ~14ns.
-     * ST7789 write cycle minimum is 66ns; read cycle is 150ns.
+     * OEM app (v2.5.1) FSMC timing:
+     * - BCR1 = 0x00001014
+     * - BTR1 = 0x00000101
+     * - BWTR1 = 0x0FFFFFFF
      *
-     * BTR1: ADDSET=3 (~42ns), DATAST=5 (~70ns) for safe write timing.
-     * Value: (DATAST << 8) | ADDSET = (5 << 8) | 3 = 0x00000503
+     * Evidence: OEM config table writer (`sub_8018FD4`) called from `sub_8019C50`.
+     * Keep these values to match the OEM bus timing exactly.
      */
     mmio_write32(FSMC_BCR1, 0x00001014u);
-    mmio_write32(FSMC_BTR1, 0x00000503u);
+    mmio_write32(FSMC_BTR1, 0x00000101u);
     mmio_write32(FSMC_BWTR1, 0x0FFFFFFFu);
     mmio_write32(FSMC_BCR1, mmio_read32(FSMC_BCR1) | 1u);
 
@@ -233,13 +302,13 @@ static inline void lcd_write_data16(uint16_t v)
 static void platform_lcd_init_oem_8080(void)
 {
     board_stage_mark(0xB160);
-    /* Reset line on PB0: high -> low -> high (matches bootloader v3.3.6 timing). */
+    /* Reset line on PB0: high -> low -> high (matches OEM app timing). */
     gpio_set_bits(GPIOB_BASE, (uint16_t)(1u << 0));
     platform_delay_ms(1u);
     gpio_clear_bits(GPIOB_BASE, (uint16_t)(1u << 0));
     platform_delay_ms(10u);
     gpio_set_bits(GPIOB_BASE, (uint16_t)(1u << 0));
-    platform_delay_ms(120u);
+    platform_delay_ms(50u);
 
     st7789_8080_bus_t bus = {
         .write_cmd = lcd_write_cmd,
@@ -252,13 +321,25 @@ static void platform_lcd_init_oem_8080(void)
     board_stage_mark(0xB16F);
 }
 
+void platform_backlight_set_level(uint8_t level)
+{
+    if (level > 5u)
+        level = 5u;
+    mmio_write32(TIM_CCR1(TIM1_BASE), (uint32_t)level * 20u);
+}
+
 static void platform_backlight_init(uint8_t level)
 {
     board_stage_mark(0xB170);
     uint32_t apb2 = mmio_read32(RCC_APB2ENR);
-    apb2 |= RCC_APB2ENR_IOPA | RCC_APB2ENR_TIM1;
+    apb2 |= RCC_APB2ENR_AFIO | RCC_APB2ENR_IOPA | RCC_APB2ENR_TIM1;
     mmio_write32(RCC_APB2ENR, apb2);
 
+    /* Force PA8 high briefly, then switch to TIM1 CH1 AF output. */
+    /* OEM app (v2.5.1): PA8 uses extend=0x02 (2MHz) for both output and AF-PP config. */
+    gpio_configure_mask(GPIOA_BASE, 0x0100u, 0x10u, 0x02u); /* PA8 output PP */
+    gpio_set_bits(GPIOA_BASE, 0x0100u);
+    platform_delay_ms(1u);
     gpio_configure_mask(GPIOA_BASE, 0x0100u, 0x18u, 0x02u); /* PA8 AF PP */
 
     mmio_write32(TIM_CR1(TIM1_BASE), 0u);
@@ -270,28 +351,52 @@ static void platform_backlight_init(uint8_t level)
     mmio_write32(TIM_BDTR(TIM1_BASE), 1u << 15); /* MOE */
     mmio_write32(TIM_EGR(TIM1_BASE), 1u); /* UG */
     mmio_write32(TIM_CR1(TIM1_BASE), (1u << 7) | 1u); /* ARPE + CEN */
+    platform_backlight_set_level(level);
 }
 
-void platform_uart_pins_init(void)
+void platform_ble_uart_pins_init(void)
 {
     board_stage_mark(0xB180);
     uint32_t apb2 = mmio_read32(RCC_APB2ENR);
     apb2 |= RCC_APB2ENR_IOPA | RCC_APB2ENR_USART1;
     mmio_write32(RCC_APB2ENR, apb2);
 
+    gpio_configure_mask(GPIOA_BASE, 0x0200u, 0x18u, 0x02u); /* PA9  USART1_TX */
+    gpio_configure_mask(GPIOA_BASE, 0x0400u, 0x48u, 0x00u); /* PA10 USART1_RX (input pull-up) */
+
+    /* If the boot monitor already configured USART1, do not reset it here.
+     * Resetting USART1 drops the BLE UART session right after 'continue boot'. */
+    if (!platform_uart1_was_inited_early())
+    {
+        mmio_write32(RCC_APB2RSTR, mmio_read32(RCC_APB2RSTR) | (1u << 14));
+        mmio_write32(RCC_APB2RSTR, mmio_read32(RCC_APB2RSTR) & ~(1u << 14));
+    }
+}
+
+void platform_motor_uart_pins_init(void)
+{
+    board_stage_mark(0xB182);
+    uint32_t apb2 = mmio_read32(RCC_APB2ENR);
+    apb2 |= RCC_APB2ENR_IOPA;
+    mmio_write32(RCC_APB2ENR, apb2);
+
     uint32_t apb1 = mmio_read32(RCC_APB1ENR);
     apb1 |= RCC_APB1ENR_USART2;
     mmio_write32(RCC_APB1ENR, apb1);
 
-    gpio_configure_mask(GPIOA_BASE, 0x0200u, 0x18u, 0x02u); /* PA9  USART1_TX */
-    gpio_configure_mask(GPIOA_BASE, 0x0400u, 0x48u, 0x02u); /* PA10 USART1_RX */
     gpio_configure_mask(GPIOA_BASE, 0x0004u, 0x18u, 0x02u); /* PA2  USART2_TX */
-    gpio_configure_mask(GPIOA_BASE, 0x0008u, 0x48u, 0x02u); /* PA3  USART2_RX */
+    gpio_configure_mask(GPIOA_BASE, 0x0008u, 0x48u, 0x00u); /* PA3  USART2_RX (input pull-up) */
 
-    mmio_write32(RCC_APB2RSTR, mmio_read32(RCC_APB2RSTR) | (1u << 14));
-    mmio_write32(RCC_APB2RSTR, mmio_read32(RCC_APB2RSTR) & ~(1u << 14));
     mmio_write32(RCC_APB1RSTR, mmio_read32(RCC_APB1RSTR) | (1u << 17));
     mmio_write32(RCC_APB1RSTR, mmio_read32(RCC_APB1RSTR) & ~(1u << 17));
+}
+
+void platform_uart_pins_init(void)
+{
+    /* Legacy entrypoint: configure both UART pin groups. Prefer calling the
+     * specific init function at the point where each UART is first used. */
+    platform_ble_uart_pins_init();
+    platform_motor_uart_pins_init();
 }
 
 static void platform_adc_init(void)
@@ -334,19 +439,23 @@ void platform_board_init(void)
 {
     board_stage_mark(0xB100);
     platform_power_hold_pin_init();
-    platform_ble_control_pins_init();
-    platform_motor_control_pins_init();
-    platform_buttons_init();
-    platform_gpioc_aux_init();
 
     platform_lcd_bus_pins_init();
     platform_fsmc_init();
     platform_lcd_init_oem_8080();
-    ui_lcd_fill_rect(0u, 0u, 240u, 320u, 0u);
+    ui_lcd_fill_rect(0u, 0u, DISP_W, DISP_H, 0u);
 
+    /* Turn backlight on immediately so any crash after this point is visible. */
     platform_backlight_init(5u);
-    platform_uart_pins_init();
     platform_adc_init();
+
+    /* OEM v2.5.1 brings up BLE module control pins + UART1 after LCD/backlight init. */
+    platform_ble_control_pins_init();
+    platform_ble_uart_pins_init();
+
+    /* Buttons are used early for safe-mode in open-firmware, but keep the OEM
+     * wiring/mode configuration consistent here as well. */
+    platform_buttons_init();
     board_stage_mark(0xB1FF);
 
     /* OEM app provides the time base in platform_timebase_init_oem(). */

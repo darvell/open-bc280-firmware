@@ -7,6 +7,9 @@
 
 /* Partition base inside external SPI flash (offset, not MMIO). */
 #define SPI_FLASH_STORAGE_BASE  0x00300000u
+/* Bootloader mode flag lives near end of storage window, mirrored by OI/O firmware code. */
+#define SPI_FLASH_BOOTMODE_FLAG_OFFSET 0x000FF080u
+#define SPI_FLASH_BOOTMODE_FLAG_ADDR (SPI_FLASH_STORAGE_BASE + SPI_FLASH_BOOTMODE_FLAG_OFFSET)
 
 /* Config blob (double-buffered). */
 #define CONFIG_SLOT_COUNT 2

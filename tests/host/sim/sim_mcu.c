@@ -47,6 +47,7 @@ struct sim_mcu {
     uint32_t iwdg_kick_ms;
     uint8_t iwdg_started;
     uint8_t iwdg_unlocked;
+    uint32_t adc_sr;
     uint16_t adc_values[18];
     uint16_t adc_last;
     uint32_t gpio_idr[5];
@@ -128,6 +129,7 @@ void sim_mcu_reset(sim_mcu_t *s)
         s->uart[i].sr = UART_SR_TXE;
     for (int ch = 0; ch < 18; ++ch)
         s->adc_values[ch] = 2000;
+    s->adc_sr = 0;
     s->spi_flash[0x3FF080] = 0xAA;
 }
 
@@ -201,8 +203,14 @@ uint32_t sim_mcu_read32(sim_mcu_t *s, uint32_t addr)
             default: return 0;
         }
     }
+    if (addr == ADC1_BASE + 0x00u)
+        return s->adc_sr;
     if (addr == ADC1_BASE + 0x4Cu)
+    {
+        /* Reading DR clears EOC in SR (STM32F1-like behavior). */
+        s->adc_sr &= ~(1u << 1);
         return s->adc_last;
+    }
     return 0;
 }
 
@@ -284,7 +292,10 @@ void sim_mcu_write32(sim_mcu_t *s, uint32_t addr, uint32_t value)
     if (addr == ADC1_BASE + 0x08u)
     {
         if (value & (1u << 22))
+        {
             s->adc_last = s->adc_values[0];
+            s->adc_sr |= (1u << 1); /* EOC */
+        }
         return;
     }
 }
