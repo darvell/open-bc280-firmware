@@ -744,10 +744,11 @@ int main(void)
     uint32_t pclk2 = rcc_get_pclk_hz_fallback(1u);
     uint32_t brr1 = uart_brr_div(pclk2, uart_baud);
     uart_init_basic(UART1_BASE, brr1);
+    boot_stage_mark(0xBAA2);
     /* OEM v2.3.0: ble_uart1_full_init sends "TTM:MAC-?" to query BLE module MAC. */
     ble_ttm_send_mac_query();
+    boot_stage_mark(0xBAAF);
     boot_log_uart_ready();
-    boot_stage_mark(0xBAA2);
 
     /* OEM v2.5.1 configures PC5/PC6 pull-ups after BLE/UART init, not during LCD init. */
     platform_gpioc_aux_init();

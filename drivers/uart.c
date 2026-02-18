@@ -3,6 +3,8 @@
 #include "platform/hw.h"
 #include "platform/mmio.h"
 
+#define UART_TX_READY_SPIN_MAX 200000u
+
 #define UART_RX_BUF_LEN 128u
 #define UART_RX_BUF_MASK (UART_RX_BUF_LEN - 1u)
 
@@ -87,15 +89,23 @@ int uart_tx_ready(uint32_t base)
 
 void uart_putc(uint32_t base, uint8_t c)
 {
+    uint32_t spins = 0u;
     while (!uart_tx_ready(base))
-        ;
+    {
+        if (++spins >= UART_TX_READY_SPIN_MAX)
+            return;
+    }
     mmio_write32(UART_DR(base), c);
 }
 
 void uart_putc_9bit(uint32_t base, uint16_t value)
 {
+    uint32_t spins = 0u;
     while (!uart_tx_ready(base))
-        ;
+    {
+        if (++spins >= UART_TX_READY_SPIN_MAX)
+            return;
+    }
     mmio_write32(UART_DR(base), (uint32_t)(value & 0x1FFu));
 }
 
