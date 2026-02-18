@@ -734,6 +734,8 @@ int main(void)
 
     boot_log_lcd_ready();
     boot_stage_mark(0xB004);
+    /* Keep controller/display power latched once basic display init succeeds. */
+    platform_key_output_set(1u);
 
     /* OEM v2.5.1: battery ADC monitoring is active during normal runtime. */
     battery_monitor_init();
@@ -860,9 +862,6 @@ int main(void)
 
     g_ms = 0;
     enable_irqs();
-
-    /* Non-blocking OEM-like PB1 sequencing (low at boot, delayed high after scheduler start). */
-    system_control_key_sequencer_init(g_ms);
 
     watchdog_start_runtime();
     boot_stage_mark(0xBAAA);
