@@ -680,7 +680,8 @@ void app_update_ui(void)
 
 void app_housekeeping(void)
 {
-    wfi();
+    /* Avoid deadlock on boards where IRQ delivery is flaky during bring-up. */
+    platform_time_poll_1ms();
 }
 
 void app_main_loop(void)

@@ -197,7 +197,8 @@ void poll_uart_rx_ports(void)
         uart_port_t *p = &g_ports[pi];
         if (g_comm_skip_uart2 && p->base == UART2_BASE)
             continue;
-        while (uart_rx_available(p->base))
+        uint16_t rx_budget = 128u;
+        while (rx_budget-- && uart_rx_available(p->base))
         {
             uint8_t b = uart_getc(p->base);
 

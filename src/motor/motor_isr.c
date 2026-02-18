@@ -283,7 +283,8 @@ void motor_isr_init(event_queue_t *evt_queue)
 void motor_isr_tick(uint32_t now_ms)
 {
     /* Process any incoming RX bytes */
-    while (uart_rx_available(UART2_BASE)) {
+    uint16_t rx_budget = 128u;
+    while (rx_budget-- && uart_rx_available(UART2_BASE)) {
         uint8_t byte = uart_getc(UART2_BASE);
         motor_isr_process_rx_byte(byte, now_ms);
     }
